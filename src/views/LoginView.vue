@@ -30,7 +30,10 @@ async function submit() {
 <template>
   <main class="login-page">
     <section class="login-story">
-      <div class="login-brand"><div class="brand-mark"><span></span><span></span><span></span></div><strong>afiet</strong></div>
+      <div class="login-brand">
+        <img class="brand-logo" src="/icon.svg" alt="" />
+        <div><strong>afiet</strong><small>Sayma, dengele.</small></div>
+      </div>
       <div class="story-copy">
         <span class="story-kicker">MUTFAK MASASI</span>
         <h1>İyi bir ürün,<br /><em>iyi bakılan</em> verilerle büyür.</h1>
@@ -42,7 +45,7 @@ async function submit() {
     <section class="login-panel">
       <form class="login-card" @submit.prevent="submit">
         <div class="login-card-head">
-          <span class="mini-leaf">✦</span>
+          <img class="login-card-logo" src="/icon.svg" alt="afiet" />
           <p>YÖNETİCİ GİRİŞİ</p>
           <h2>Masaya hoş geldin.</h2>
           <span>Stack Auth hesabınla güvenli biçimde devam et.</span>

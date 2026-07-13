@@ -26,10 +26,10 @@ function logout() {
     <button v-if="mobileOpen" class="mobile-shade visible" aria-label="Menüyü kapat" @click="mobileOpen = false" />
     <aside class="sidebar" :class="{ open: mobileOpen }">
       <div class="brand-lockup">
-        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <img class="brand-logo" src="/icon.svg" alt="" />
         <div>
           <strong>afiet</strong>
-          <small>mutfak masası</small>
+          <small>Sayma, dengele.</small>
         </div>
       </div>
 
@@ -63,7 +63,8 @@ function logout() {
     <main class="main-stage">
       <header class="mobile-header">
         <button class="menu-trigger" aria-label="Menüyü aç" @click="mobileOpen = true"><i class="pi pi-bars" /></button>
-        <strong>afiet <span>yönetim</span></strong>
+        <img class="mobile-brand-logo" src="/icon.svg" alt="" />
+        <div class="mobile-wordmark"><strong>afiet</strong><span>yönetim</span></div>
       </header>
       <RouterView />
     </main>
