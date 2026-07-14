@@ -1,4 +1,5 @@
 import { authorizedFetch, signOut } from './auth'
+import type { GrowthData } from './growth'
 
 export type Macros = { kcal: number; protein: number; carb: number; fat: number }
 export type Food = {
@@ -56,6 +57,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const adminApi = {
   summary: () => request<Summary>('/v1/admin/summary'),
+  growth: () => request<GrowthData>('/v1/admin/growth'),
   foods: (params: { page: number; pageSize: number; query?: string; category?: string; status?: string }) =>
     request<Page<Food>>(`/v1/admin/foods${queryString(params)}`),
   addFood: (input: FoodInput) => request<Food>('/v1/admin/foods', { method: 'POST', body: JSON.stringify(input) }),

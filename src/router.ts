@@ -10,6 +10,7 @@ const router = createRouter({
       component: () => import('./components/AppShell.vue'),
       children: [
         { path: '', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
+        { path: 'buyume', name: 'growth', component: () => import('./views/GrowthView.vue') },
         { path: 'besinler', name: 'foods', component: () => import('./views/FoodsView.vue') },
         { path: 'kullanicilar', name: 'users', component: () => import('./views/UsersView.vue') },
         { path: 'bekleme-listesi', name: 'waitlist', component: () => import('./views/WaitlistView.vue') },
