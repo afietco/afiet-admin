@@ -1,0 +1,9 @@
+# CLI deploy'unda ASLA yüklenmeyecekler. Kritik: .env yüklenirse Vite yerel
+# değerleri (localhost API URL'i, dev token) production bundle'ına gömer —
+# 14 Tem 2026'da yaşandı. Proje env'leri Vercel dashboard/CLI'dan yönetilir.
+.env
+.env.*
+!.env.example
+dist
+node_modules
+output
