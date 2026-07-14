@@ -13,6 +13,7 @@ const items = [
   { to: '/besinler', label: 'Besin kataloğu', icon: 'pi pi-book', name: 'foods' },
   { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users' },
   { to: '/bekleme-listesi', label: 'Bekleme listesi', icon: 'pi pi-inbox', name: 'waitlist' },
+  { to: '/seo', label: 'SEO & GEO', icon: 'pi pi-globe', name: 'seo' },
 ]
 
 function logout() {
