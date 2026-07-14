@@ -10,6 +10,7 @@ const router = useRouter()
 const mobileOpen = ref(false)
 const items = [
   { to: '/', label: 'Genel bakış', icon: 'pi pi-th-large', name: 'dashboard' },
+  { to: '/buyume', label: 'Büyüme', icon: 'pi pi-chart-line', name: 'growth' },
   { to: '/besinler', label: 'Besin kataloğu', icon: 'pi pi-book', name: 'foods' },
   { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users' },
   { to: '/bekleme-listesi', label: 'Bekleme listesi', icon: 'pi pi-inbox', name: 'waitlist' },
