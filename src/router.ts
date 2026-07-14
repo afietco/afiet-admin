@@ -13,6 +13,7 @@ const router = createRouter({
         { path: 'besinler', name: 'foods', component: () => import('./views/FoodsView.vue') },
         { path: 'kullanicilar', name: 'users', component: () => import('./views/UsersView.vue') },
         { path: 'bekleme-listesi', name: 'waitlist', component: () => import('./views/WaitlistView.vue') },
+        { path: 'seo', name: 'seo', component: () => import('./views/SeoView.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

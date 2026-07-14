@@ -63,23 +63,27 @@ async function refreshAccessToken(): Promise<string> {
   return body.access_token
 }
 
-export async function authorizedFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+export async function authorizedFetchBase(baseUrl: string, path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const tokens = readTokens()
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (init.body) headers.set('Content-Type', 'application/json')
   if (tokens?.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`)
-  let response = await fetch(`${config.apiUrl}${path}`, { ...init, headers })
+  let response = await fetch(`${baseUrl}${path}`, { ...init, headers })
   if (response.status === 401 && retry && tokens?.refreshToken) {
     try {
       const access = await refreshAccessToken()
       headers.set('Authorization', `Bearer ${access}`)
-      response = await fetch(`${config.apiUrl}${path}`, { ...init, headers })
+      response = await fetch(`${baseUrl}${path}`, { ...init, headers })
     } catch {
       signOut()
     }
   }
   return response
+}
+
+export function authorizedFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  return authorizedFetchBase(config.apiUrl, path, init, retry)
 }
 
 async function verifySession() {
@@ -97,6 +101,15 @@ async function verifySession() {
 export async function initializeAuth() {
   if (initialized) return
   initialized = true
+  // YALNIZ yerel geliştirme: web SEO API'sine dev token'la bağlanılıyorsa
+  // Stack girişi olmadan panel açılır (SEO ekranı dev token'la çalışır;
+  // backend'e giden diğer ekranlar oturumsuz kalır). Prod build'de bu dal
+  // ölüdür: import.meta.env.DEV derlemede false'a katlanır.
+  if (import.meta.env.DEV && config.webAdminDevToken) {
+    auth.user = { user_id: 'dev', email: 'dev@localhost', roles: ['admin'] }
+    auth.status = 'authenticated'
+    return
+  }
   if (!readTokens()) {
     auth.status = 'anonymous'
     return
