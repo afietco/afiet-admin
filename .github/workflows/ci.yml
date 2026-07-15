@@ -1,0 +1,31 @@
+# PR doğrulaması: üç ana dala giden her PR'da koşar. Deploy YAPMAZ —
+# admin deploy'larını Vercel'in Git entegrasyonu yürütür (main→Production,
+# development/staging dalları→Preview). Bu iş yalnızca kalite kapısıdır.
+name: ci
+
+on:
+  pull_request:
+    branches: [development, staging, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tip kontrolü
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
