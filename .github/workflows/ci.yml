@@ -1,9 +1,12 @@
-# PR doğrulaması: üç ana dala giden her PR'da koşar. Deploy YAPMAZ —
-# admin deploy'larını Vercel'in Git entegrasyonu yürütür (main→Production,
-# development/staging dalları→Preview). Bu iş yalnızca kalite kapısıdır.
+# Kalite kapısı: üç ana dala giden PR'larda VE push'larda koşar (akış
+# zaman zaman PR'sız terfi push'u kullanıyor — push tetikleyicisi olmadan
+# CI hiç koşmuyordu). Deploy YAPMAZ — admin deploy'larını Vercel'in Git
+# entegrasyonu yürütür (main→Production, development/staging→Preview).
 name: ci
 
 on:
+  push:
+    branches: [development, staging, main]
   pull_request:
     branches: [development, staging, main]
 
