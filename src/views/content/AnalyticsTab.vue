@@ -20,6 +20,33 @@ const { payload, upsertMetric } = useContentStore()
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 const pct = (n: number, base: number) => (base > 0 ? Math.round((n / base) * 100) : 0)
 
+/** Tüm ölçümleri içerik bilgisiyle CSV indir (Waitlist deseni). */
+function exportCsv() {
+  const metrics = [...payload.value.metrics].sort((a, b) => (a.metricDate < b.metricDate ? 1 : -1))
+  if (!metrics.length) {
+    toast.add({ severity: 'warn', summary: 'Dışa aktarılacak ölçüm yok', detail: 'Önce "Ölçüm gir" ile en az bir kayıt ekle.', life: 3500 })
+    return
+  }
+  const itemById = new Map(payload.value.items.map((i) => [i.id, i]))
+  const escape = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
+  const csv = [
+    'tarih,icerik_id,baslik,kanal,goruntulenme,begeni,yorum,paylasim,kaydetme,tiklama,not',
+    ...metrics.map((m) => {
+      const item = itemById.get(m.itemId)
+      return [
+        m.metricDate, m.itemId, item?.title ?? '', item ? channelMeta(item.channel).label : '',
+        m.views, m.likes, m.comments, m.shares, m.saves, m.clicks, m.notes,
+      ].map(escape).join(',')
+    }),
+  ].join('\n')
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }))
+  link.download = `afiet-icerik-metrikleri-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+  toast.add({ severity: 'success', summary: `${metrics.length} ölçüm indirildi`, life: 2500 })
+}
+
 /** Ölçüm girilebilir içerikler: yayında/arşivde olanlar + zaten metriği olanlar. */
 const rows = computed(() => {
   const withMetric = new Set(payload.value.metrics.map((m) => m.itemId))
@@ -99,7 +126,9 @@ const postUrl = (slug: string) => `${config.webApiUrl}/blog/${slug}`
 
 <template>
   <div class="tab-body">
-    <p class="analytics-note"><i class="pi pi-pencil" /> Metrikler elle girilir (haftalık fotoğraf önerilir) — her içeriğin <strong>son ölçümü</strong> esas alınır. Aynı tarihe girilen değer üzerine yazar.</p>
+    <div class="content-toolbar">
+      <p class="analytics-note"><i class="pi pi-pencil" /> Metrikler elle girilir (haftalık fotoğraf önerilir) — her içeriğin <strong>son ölçümü</strong> esas alınır. Aynı tarihe girilen değer üzerine yazar.</p>
+      <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" /></div>
 
     <div class="metric-grid three">
       <article v-for="(c, i) in channelCards" :key="c.value" class="metric-card" :class="cardTone(i)">
