@@ -83,7 +83,8 @@ async function webFetch(path: string, init: RequestInit = {}): Promise<Response>
   return authorizedFetchBase(config.webApiUrl, path, init)
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Web API'sine kimlikli istek — diğer web-kaynaklı servisler de (içerik) bunu kullanır. */
+export async function webRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await webFetch(path, init)
   if (response.status === 401 && !usingDevToken()) signOut()
   if (!response.ok) {
@@ -104,19 +105,19 @@ const q = (params: Record<string, string>) => {
 }
 
 export const webApi = {
-  get: () => request<AdminSeoPayload>('/api/admin/seo'),
+  get: () => webRequest<AdminSeoPayload>('/api/admin/seo'),
   putSettings: (key: SettingsKey, value: unknown) =>
-    request<AdminSeoPayload>(`/api/admin/seo/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
+    webRequest<AdminSeoPayload>(`/api/admin/seo/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
   deleteSettings: (key: SettingsKey) =>
-    request<AdminSeoPayload>(`/api/admin/seo/settings/${key}`, { method: 'DELETE' }),
+    webRequest<AdminSeoPayload>(`/api/admin/seo/settings/${key}`, { method: 'DELETE' }),
   putPage: (path: string, value: PageSeo) =>
-    request<AdminSeoPayload>('/api/admin/seo/page', { method: 'PUT', body: JSON.stringify({ path, value }) }),
+    webRequest<AdminSeoPayload>('/api/admin/seo/page', { method: 'PUT', body: JSON.stringify({ path, value }) }),
   deletePage: (path: string) =>
-    request<AdminSeoPayload>(`/api/admin/seo/page${q({ path })}`, { method: 'DELETE' }),
+    webRequest<AdminSeoPayload>(`/api/admin/seo/page${q({ path })}`, { method: 'DELETE' }),
   putRedirect: (redirect: SeoRedirect) =>
-    request<AdminSeoPayload>('/api/admin/seo/redirect', { method: 'PUT', body: JSON.stringify(redirect) }),
+    webRequest<AdminSeoPayload>('/api/admin/seo/redirect', { method: 'PUT', body: JSON.stringify(redirect) }),
   deleteRedirect: (from: string) =>
-    request<AdminSeoPayload>(`/api/admin/seo/redirect${q({ from })}`, { method: 'DELETE' }),
+    webRequest<AdminSeoPayload>(`/api/admin/seo/redirect${q({ from })}`, { method: 'DELETE' }),
   // Auth'suz, yan etkisiz önizleme ucu — sunucunun çözdüğü nihai meta.
   meta: (path: string) =>
     fetch(`${config.webApiUrl}/api/seo/meta${q({ path })}`, { headers: { Accept: 'application/json' } })
