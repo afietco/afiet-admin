@@ -15,6 +15,7 @@ const router = createRouter({
         { path: 'kullanicilar', name: 'users', component: () => import('./views/UsersView.vue') },
         { path: 'bekleme-listesi', name: 'waitlist', component: () => import('./views/WaitlistView.vue') },
         { path: 'seo', name: 'seo', component: () => import('./views/SeoView.vue') },
+        { path: 'icerik', name: 'content', component: () => import('./views/content/ContentView.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
