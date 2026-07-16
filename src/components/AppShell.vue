@@ -15,6 +15,7 @@ const items = [
   { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users' },
   { to: '/bekleme-listesi', label: 'Bekleme listesi', icon: 'pi pi-inbox', name: 'waitlist' },
   { to: '/seo', label: 'SEO & GEO', icon: 'pi pi-globe', name: 'seo' },
+  { to: '/icerik', label: 'İçerik', icon: 'pi pi-megaphone', name: 'content' },
 ]
 
 function logout() {
