@@ -1,81 +1,54 @@
 import { computed, reactive } from 'vue'
 import {
-  contentApi, mockContent,
-  type AdminContentPayload, type Channel, type ContentItem, type ContentItemInput,
-  type ContentMetric, type ContentMetricInput, type ContentStatus,
+  contentApi, emptyContentPayload,
+  type AdminContentPayload, type ContentItem, type ContentItemInput,
+  type ContentMetric, type ContentMetricInput, type ContentStatus, type Channel,
 } from '../../services/content'
 
 /**
- * İçerik bölümünün ortak durumu (modül tekili) — Plan/Analitik sekmeleri ve
+ * İçerik bölümünün ortak durumu (modül tekili): Plan/Analitik sekmeleri ve
  * diyaloglar aynı payload üzerinde çalışır.
  *
- * Yazma davranışı Büyüme desenini genişletir: gerçek uç varken (payload.live)
- * her yazma API'ye gider ve dönen taze payload'la tazelenir; mock kipindeyken
- * (Faz A / uç yok / oturumsuz) aynı işlemler YEREL duruma uygulanır ki arayüz
- * uçtan uca denenebilsin — "mock veri" rozeti bunu belli eder.
+ * Veri canlı uçtan (`payload.live === true`) gelir; her yazma API'ye gider ve
+ * dönen taze payload'la tazelenir. Uç erişilemezse mock ÜRETİLMEZ: payload boş
+ * kalır (`live: false`), sayfa placeholder gösterir ve yazma kapalıdır.
  */
 const state = reactive<{ payload: AdminContentPayload; loading: boolean }>({
-  payload: mockContent(),
+  payload: emptyContentPayload(),
   loading: false,
 })
 
-const nowIso = () => new Date().toISOString()
-const nextId = (rows: { id: number }[]) => rows.reduce((max, r) => Math.max(max, r.id), 0) + 1
+const OFFLINE = 'Bağlantı yok; içerik verisi getirilemedi.'
 
 async function load() {
   state.loading = true
   try {
     state.payload = await contentApi.get()
   } catch {
-    state.payload = mockContent() // uç yok / oturumsuz → mock (rozet gösterilir)
+    state.payload = emptyContentPayload() // uç yok / oturumsuz → boş (placeholder gösterilir)
   } finally {
     state.loading = false
   }
 }
 
 async function upsertItem(input: ContentItemInput): Promise<ContentItem> {
-  if (state.payload.live) {
-    state.payload = await contentApi.putItem(input)
-    const saved = input.id
-      ? state.payload.items.find((i) => i.id === input.id)
-      : state.payload.items.reduce((a, b) => (a.id > b.id ? a : b))
-    if (!saved) throw new Error('Kayıt sonrası içerik bulunamadı.')
-    return saved
-  }
-  // mock kipi — yerel mutasyon
-  if (input.id) {
-    const current = state.payload.items.find((i) => i.id === input.id)
-    if (!current) throw new Error('İçerik bulunamadı.')
-    Object.assign(current, { ...input, updatedAt: nowIso() })
-    return current
-  }
-  const created: ContentItem = {
-    ...input,
-    id: nextId(state.payload.items),
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  }
-  state.payload.items.unshift(created)
-  return created
+  if (!state.payload.live) throw new Error(OFFLINE)
+  state.payload = await contentApi.putItem(input)
+  const saved = input.id
+    ? state.payload.items.find((i) => i.id === input.id)
+    : state.payload.items.reduce((a, b) => (a.id > b.id ? a : b))
+  if (!saved) throw new Error('Kayıt sonrası içerik bulunamadı.')
+  return saved
 }
 
 async function removeItem(id: number): Promise<void> {
-  if (state.payload.live) {
-    state.payload = await contentApi.deleteItem(id)
-    return
-  }
-  state.payload.items = state.payload.items.filter((i) => i.id !== id)
-  state.payload.metrics = state.payload.metrics.filter((m) => m.itemId !== id)
+  if (!state.payload.live) throw new Error(OFFLINE)
+  state.payload = await contentApi.deleteItem(id)
 }
 
 async function upsertMetric(input: ContentMetricInput): Promise<void> {
-  if (state.payload.live) {
-    state.payload = await contentApi.putMetric(input)
-    return
-  }
-  const existing = state.payload.metrics.find((m) => m.itemId === input.itemId && m.metricDate === input.metricDate)
-  if (existing) Object.assign(existing, input)
-  else state.payload.metrics.push({ ...input, id: nextId(state.payload.metrics) })
+  if (!state.payload.live) throw new Error(OFFLINE)
+  state.payload = await contentApi.putMetric(input)
 }
 
 export function useContentStore() {

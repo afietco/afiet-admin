@@ -10,9 +10,11 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import EmptyState from '../../components/EmptyState.vue'
-import { config } from '../../config'
 import type { ContentItem } from '../../services/content'
 import { CHANNELS, channelMeta, formatDate, latestMetric, toIsoDate, useContentStore } from './shared'
+
+/** Blog artık Analitik sayfasından otomatik gelir; burada yalnız elle girilen kanallar. */
+const MANUAL_CHANNELS = CHANNELS.filter((c) => c.value !== 'blog')
 
 const toast = useToast()
 const { payload, upsertMetric } = useContentStore()
@@ -51,7 +53,7 @@ function exportCsv() {
 const rows = computed(() => {
   const withMetric = new Set(payload.value.metrics.map((m) => m.itemId))
   return payload.value.items
-    .filter((i) => i.status === 'yayinda' || i.status === 'arsiv' || withMetric.has(i.id))
+    .filter((i) => i.channel !== 'blog' && (i.status === 'yayinda' || i.status === 'arsiv' || withMetric.has(i.id)))
     .map((i) => {
       const last = latestMetric(payload.value.metrics, i.id)
       return {
@@ -65,7 +67,7 @@ const rows = computed(() => {
 
 /** Kanal toplamları — her içeriğin SON ölçümü üzerinden. */
 const channelCards = computed(() =>
-  CHANNELS.map((c) => {
+  MANUAL_CHANNELS.map((c) => {
     const chRows = rows.value.filter((r) => r.item.channel === c.value)
     return {
       ...c,
@@ -121,16 +123,15 @@ async function saveMetric() {
   }
 }
 
-const postUrl = (slug: string) => `${config.webApiUrl}/blog/${slug}`
 </script>
 
 <template>
   <div class="tab-body">
     <div class="content-toolbar">
-      <p class="analytics-note"><i class="pi pi-pencil" /> Metrikler elle girilir (haftalık fotoğraf önerilir) — her içeriğin <strong>son ölçümü</strong> esas alınır. Aynı tarihe girilen değer üzerine yazar.</p>
+      <p class="analytics-note"><i class="pi pi-pencil" /> Instagram ve X metrikleri elle girilir (haftalık fotoğraf önerilir); her içeriğin <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri artık Analitik sayfasından otomatik gelir.</p>
       <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" /></div>
 
-    <div class="metric-grid three">
+    <div class="split-grid">
       <article v-for="(c, i) in channelCards" :key="c.value" class="metric-card" :class="cardTone(i)">
         <div class="metric-top"><span>{{ c.label }}</span><i :class="c.icon" /></div>
         <strong>{{ fmt(c.views) }}</strong>
@@ -165,20 +166,6 @@ const postUrl = (slug: string) => `${config.webApiUrl}/blog/${slug}`
           <template #body="{ data }"><Button label="Ölçüm gir" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openMetric(data.item)" /></template>
         </Column>
       </DataTable>
-    </section>
-
-    <section v-if="payload.posts.length" class="panel-card pad">
-      <div class="panel-title sm"><div><p>AFİET.CO/BLOG</p><h2>Blog yazıları</h2></div></div>
-      <ul class="posts-strip">
-        <li v-for="p in payload.posts" :key="p.slug">
-          <Tag :value="p.status === 'yayinda' ? 'Yayında' : 'Taslak'" :severity="p.status === 'yayinda' ? 'success' : 'secondary'" />
-          <div class="post-copy">
-            <strong>{{ p.title }}</strong>
-            <small class="mono">/blog/{{ p.slug }}<template v-if="p.readingMinutes"> · {{ p.readingMinutes }} dk okuma</template><template v-if="p.publishedAt"> · {{ formatDate(p.publishedAt, true) }}</template></small>
-          </div>
-          <a :href="postUrl(p.slug)" target="_blank" rel="noopener" class="file-link"><i class="pi pi-external-link" /> gör</a>
-        </li>
-      </ul>
     </section>
 
     <Dialog v-model:visible="metricOpen" modal :header="`Ölçüm gir — ${metricItem?.title ?? ''}`" :style="{ width: '34rem' }">
