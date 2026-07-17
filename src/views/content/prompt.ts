@@ -13,7 +13,7 @@ import { slugify } from '../../services/content'
  *
  * Şablon değişikliklerinde sürümü artır — üretilen içerikte iz bırakır.
  */
-export const PROMPT_VERSION = 1
+export const PROMPT_VERSION = 2
 
 /** "Claude çıktısını içe aktar" kutusunun beklediği json şekli. */
 export type PlanImport = {
@@ -67,7 +67,7 @@ ${BRAND_BLOCK}
 ${briefBlock(item)}
 
 ## Senden istenen
-1. Fikri kısaca değerlendir: açı önerin, hedef kitle netleştirmesi, varsa riskler (2–5 cümle).
+1. Fikri kısaca değerlendir: arama niyeti (bilgi/ticari/navigasyon), afiet'in özgün açısı (bilgi kazanımı: rakiplerin sunmadığı ne), hedef kitle netleştirmesi, varsa riskler (2-5 cümle).
 2. Ardından TEK bir \`\`\`json kod bloğu ver — panele "Claude çıktısını içe aktar" ile yapıştırılacak. Şema:
 
 \`\`\`json
@@ -76,15 +76,15 @@ ${briefBlock(item)}
   "slug": "${suggestedSlug}",
   "plannedDate": null,
   "brief": {
-    "keywords": ["3-8 anahtar kelime, arama niyetine göre"],
+    "keywords": ["3-8 anahtar kelime, arama niyetine göre; Türkçe karakterli/karaktersiz ve sondan ekli varyantları da kat"],
     "audience": "hedef kitle, tek cümle",
-    "angle": "içeriğin açısı/tezi, 1-2 cümle",
+    "angle": "içeriğin açısı/tezi ve afiet'in bilgi kazanımı, 1-2 cümle",
     "tone": "ton notu",
     "outline": ["${item.channel === 'blog' ? 'H2/H3 taslağı, 5-9 madde — son madde: Sık sorulanlar' : 'bölüm bölüm akış (hook → gövde → kapanış)'}"],
-    "internalLinks": ["/", "/blog gibi afiet.co yolları"],
+    "internalLinks": ["bağlı olduğu pillar/hub yolu + ilgili cluster'lar (çift yönlü); ör. /blog/dengeli-beslenme-nedir"],
     "cta": "tek, nazik bir çağrı",
     "sources": ["iddiaları destekleyecek güvenilir kaynak URL'leri"],
-    "notes": "üretimde dikkat edilecekler"
+    "notes": "üretimde dikkat + YMYL ise önerilen inceleyen"
   }
 }
 \`\`\`
@@ -108,13 +108,26 @@ ${BRAND_BLOCK}
 ## Brief
 ${briefBlock(item)}
 
-## SEO & GEO kuralları
-- Meta title ≤ 60 karakter; meta description 140–160 karakter.
-- Gövdede H1 KULLANMA (sayfa başlığı ayrıca basılır); H2/H3 hiyerarşisi kur.
-- 900–1500 kelime; kısa paragraflar, taranabilir yapı, gerektiğinde listeler.
-- Sona "## Sık sorulanlar" bölümü ekle: 3–5 soru-cevap (GEO — AI aramaları bu bölümü sever).
-- İç bağlantıları gövdeye doğal biçimde yerleştir; sağlık iddialarını kaynağa bağla.
+## SEO & GEO kuralları (alıntılanabilirlik odaklı)
+- Meta title ≤ 60 karakter; meta description 140-160 karakter.
+- İlk 120 kelimede başlıktaki soruyu DOĞRUDAN yanıtla; cevabı derine gömme (curiosity gap yok).
+- Gövdede H1 KULLANMA (sayfa başlığı ayrıca basılır); H2/H3 hiyerarşisi kur. Her H2/H3'ün hemen altına, kendi başına okunabilen 40-60 kelimelik bir cevap bloğu koy (AI özet kutusu bunu alır).
+- Uzunluk: cluster yazı 1000-1600 kelime, pillar/hub yazı 2000-3500. Kısa paragraflar, taranabilir yapı; gerektiğinde liste, tablo, özet kutusu.
+- En az 2-3 sayısal veri ekle ve her birini güvenilir kaynağa satır içi linkle (WHO, CDC, T.C. Sağlık Bakanlığı/TÜBER 2022, Harvard Nutrition Source, PubMed). Kaynaksız sağlık iddiası bırakma.
+- Bir otorite kaynaktan tek bir kısa alıntı (pull quote) ekle.
+- Sona "## Sık sorulanlar" bölümü ekle: 3-5 gerçek kullanıcı sorusu, doğal dil (FAQPage şeması; AI aramaları bu bölümü sever).
+- İç bağlantı: bağlı olduğu pillar/hub ile ilgili cluster'ları çift yönlü bağla; gövdeye doğal yerleştir.
+- Anahtar kelimeyi Türkçe karakterli/karaktersiz ve sondan ekli varyantlarıyla doğal geçir (ör. "çay/cay", "porsiyon/porsiyonu"); slug Türkçe karaktersiz kalır.
 - afiet'i doğal biçimde konumla; satış dili yok, en fazla bir nazik CTA.
+- Genel rehber uyarısını koru: kişiye özel tıbbi ya da diyet tavsiyesi değildir.
+
+## E-E-A-T (yazar ve güven, sağlık = YMYL)
+- Gövdenin EN ÜSTÜNE (girişten önce) tek satır italik künye koy, şu biçimde:
+  "*Yazan: <ad, unvan> · İnceleyen: <ad, unvan> · Son güncelleme: <GG Ay YYYY>*"
+  Sağlık iddiası yoksa "İnceleyen" atlanabilir. Künyeyi brief'teki gerçek bilgiyle
+  doldur; eksik bilgiyi UYDURMA, bana sor (sahte yazar/uzman olmaz).
+- Not: yapısal yazar/inceleyen (frontmatter + MedicalWebPage şeması) web tarafı
+  desteğiyle gelecek; şimdilik bu görünür satır E-E-A-T metnini taşır.
 
 ## Çıktı formatı
 \`content/posts/${slug}.md\` dosyasını şu frontmatter ile oluştur:
