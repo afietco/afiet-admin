@@ -55,7 +55,7 @@ onMounted(load)
     <section class="dashboard-grid">
       <article class="panel-card welcome-card">
         <div class="welcome-copy"><p>HIZLI BAŞLANGIÇ</p><h2>Kataloğu canlı tut.</h2><span>Yeni bir besin ekle, ölçüsünü ve makrolarını doğrula; uygulamanın ortak dilini buradan yönet.</span><RouterLink to="/besinler">Besinlere git <i class="pi pi-arrow-right" /></RouterLink></div>
-        <div class="plate-illustration" aria-hidden="true"><div class="plate"><span class="leaf l1"></span><span class="leaf l2"></span><span class="dot d1"></span><span class="dot d2"></span><b>109</b><small>başlangıç<br />besini</small></div></div>
+        <div class="plate-illustration" aria-hidden="true"><div class="plate"><span class="leaf l1"></span><span class="leaf l2"></span><span class="dot d1"></span><span class="dot d2"></span><b>{{ summary ? summary.foodCount.toLocaleString('tr-TR') : '…' }}</b><small>aktif<br />besin</small></div></div>
       </article>
       <article class="panel-card recent-card">
         <div class="panel-title"><div><p>SON KATILANLAR</p><h2>Bekleme listesi</h2></div><RouterLink to="/bekleme-listesi">Tümü</RouterLink></div>
