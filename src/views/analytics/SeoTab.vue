@@ -6,14 +6,13 @@ import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
-import PageHeader from '../components/PageHeader.vue'
-import GeneralTab from './seo/GeneralTab.vue'
-import PagesTab from './seo/PagesTab.vue'
-import SchemaFaqTab from './seo/SchemaFaqTab.vue'
-import RobotsTab from './seo/RobotsTab.vue'
-import LlmsTab from './seo/LlmsTab.vue'
-import RedirectsTab from './seo/RedirectsTab.vue'
-import { webApi, type AdminSeoPayload } from '../services/webApi'
+import GeneralTab from '../seo/GeneralTab.vue'
+import PagesTab from '../seo/PagesTab.vue'
+import SchemaFaqTab from '../seo/SchemaFaqTab.vue'
+import RobotsTab from '../seo/RobotsTab.vue'
+import LlmsTab from '../seo/LlmsTab.vue'
+import RedirectsTab from '../seo/RedirectsTab.vue'
+import { webApi, type AdminSeoPayload } from '../../services/webApi'
 
 const payload = ref<AdminSeoPayload | null>(null)
 const loading = ref(true)
@@ -44,10 +43,11 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="page-wrap">
-    <PageHeader eyebrow="GÖRÜNÜRLÜK" title="SEO & GEO" description="afiet.co'nun arama motoru ve yapay zeka görünürlüğünü buradan yönet. Değişiklikler siteye en geç 1 dakikada yansır.">
+  <div class="tab-body">
+    <div class="seo-lead">
+      <p class="analytics-note"><i class="pi pi-globe" /> afiet.co'nun arama motoru ve yapay zeka görünürlüğü. Değişiklikler siteye en geç 1 dakikada yansır.</p>
       <Button label="Yenile" icon="pi pi-refresh" outlined :loading="loading" @click="load" />
-    </PageHeader>
+    </div>
 
     <div v-if="error" class="error-banner"><i class="pi pi-exclamation-circle" /><span>{{ error }}</span><button @click="load">Tekrar dene</button></div>
 
@@ -56,7 +56,7 @@ onMounted(load)
     <template v-if="payload">
       <div v-if="!payload.dbConnected" class="db-banner">
         <i class="pi pi-database" />
-        <span>Veritabanı bağlı değil — ayarlar salt-okunur (kod varsayılanları gösteriliyor). Kaydetme kapalı.</span>
+        <span>Veritabanı bağlı değil; ayarlar salt-okunur (kod varsayılanları gösteriliyor). Kaydetme kapalı.</span>
       </div>
 
       <Tabs v-model:value="activeTab" class="seo-tabs">
