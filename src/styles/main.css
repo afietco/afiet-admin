@@ -393,3 +393,25 @@ strong.num-cell { font-size: 13px; }
   .blog-stats { gap: 20px; } .bstat { text-align: left; }
   .seo-lead { flex-direction: column; align-items: stretch; } .seo-lead .p-button { width: 100%; }
 }
+
+/* ── Bildirimler ── */
+.push-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.push-compose { padding: 20px 22px; }
+.push-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: 12px; background: #fdf6e7; color: #7a5a12; font-size: .86rem; line-height: 1.5; }
+.push-note i { margin-top: 2px; }
+.push-preview { position: sticky; top: 18px; display: grid; gap: 8px; }
+.push-phone { background: var(--canvas); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+.push-bubble { display: flex; gap: 10px; padding: 12px; border-radius: 14px; background: var(--paper); box-shadow: 0 8px 22px rgba(48, 53, 43, .08); }
+.push-app-icon { flex: none; width: 32px; height: 32px; border-radius: 8px; }
+.push-bubble-copy { flex: 1; min-width: 0; }
+.push-bubble-top { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; }
+.push-bubble-title { display: block; margin-top: 4px; color: var(--ink); font-size: .92rem; overflow-wrap: anywhere; }
+.push-bubble-body { margin: 2px 0 0; color: var(--muted); font-size: .86rem; line-height: 1.45; overflow-wrap: anywhere; }
+.push-route-hint { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; color: var(--muted); font-size: .82rem; }
+.push-route-hint strong { color: var(--green-dark); }
+.push-row-body { display: block; max-width: 26rem; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1020px) {
+  .push-layout { grid-template-columns: 1fr; }
+  .push-preview { position: static; }
+}
