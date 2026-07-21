@@ -16,6 +16,7 @@ const items = [
   { to: '/bekleme-listesi', label: 'Bekleme listesi', icon: 'pi pi-inbox', name: 'waitlist' },
   { to: '/analitik', label: 'Analitik', icon: 'pi pi-chart-bar', name: 'analytics' },
   { to: '/icerik', label: 'İçerik', icon: 'pi pi-megaphone', name: 'content' },
+  { to: '/bildirimler', label: 'Bildirimler', icon: 'pi pi-bell', name: 'push' },
 ]
 
 function logout() {

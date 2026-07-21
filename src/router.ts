@@ -17,6 +17,7 @@ const router = createRouter({
         { path: 'analitik', name: 'analytics', component: () => import('./views/analytics/AnalyticsView.vue') },
         { path: 'seo', redirect: { name: 'analytics' } },
         { path: 'icerik', name: 'content', component: () => import('./views/content/ContentView.vue') },
+        { path: 'bildirimler', name: 'push', component: () => import('./views/push/PushView.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
