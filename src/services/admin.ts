@@ -1,5 +1,6 @@
 import { authorizedFetch, signOut } from './auth'
 import type { GrowthData } from './growth'
+import type { PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput } from './push'
 
 export type Macros = { kcal: number; protein: number; carb: number; fat: number }
 export type Food = {
@@ -67,4 +68,15 @@ export const adminApi = {
     request<Page<User>>(`/v1/admin/users${queryString(params)}`),
   waitlist: (params: { page: number; pageSize: number; query?: string }) =>
     request<Page<WaitlistEntry>>(`/v1/admin/waitlist${queryString(params)}`),
+  pushBroadcasts: (params: { page: number; pageSize: number }) =>
+    request<Page<PushBroadcast>>(`/v1/admin/push/broadcasts${queryString(params)}`),
+  pushAudience: (audience: PushAudience) =>
+    request<PushAudiencePreview>(`/v1/admin/push/audience${queryString({
+      kind: audience.kind,
+      identifier: audience.kind === 'user' ? audience.identifier : undefined,
+    })}`),
+  sendPushBroadcast: (input: PushBroadcastInput) =>
+    request<PushBroadcast>('/v1/admin/push/broadcasts', { method: 'POST', body: JSON.stringify(input) }),
+  cancelPushBroadcast: (id: string) =>
+    request<void>(`/v1/admin/push/broadcasts/${id}`, { method: 'DELETE' }),
 }
