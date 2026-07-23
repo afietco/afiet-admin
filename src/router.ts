@@ -14,6 +14,7 @@ const router = createRouter({
         { path: 'besinler', name: 'foods', component: () => import('./views/FoodsView.vue') },
         { path: 'kullanicilar', name: 'users', component: () => import('./views/UsersView.vue') },
         { path: 'bekleme-listesi', name: 'waitlist', component: () => import('./views/WaitlistView.vue') },
+        { path: 'beta-basvurulari', name: 'beta', component: () => import('./views/beta/BetaView.vue') },
         { path: 'analitik', name: 'analytics', component: () => import('./views/analytics/AnalyticsView.vue') },
         { path: 'seo', redirect: { name: 'analytics' } },
         { path: 'icerik', name: 'content', component: () => import('./views/content/ContentView.vue') },
