@@ -28,6 +28,30 @@ export type User = {
   measurementCount: number
   lastActivityAt: string | null
 }
+export type Quest = {
+  id: string
+  key: string
+  title: string
+  detail: string
+  emoji: string
+  metric: string
+  scope: string
+  target: number
+  xpReward: number
+  active: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+/** key is ignored on update — user progress is keyed to it. */
+export type QuestInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt'>
+/**
+ * The list endpoint ships the allowed metric/scope values with the rows, so the
+ * form never hardcodes the quest_metric enum. A metric missing from that list
+ * would make its quests unsavable, which is exactly how 7 of the 14 seeded
+ * quests were once locked out of this panel.
+ */
+export type QuestList = { quests: Quest[]; metrics: string[]; scopes: string[] }
 export type WaitlistEntry = { id: number; email: string; source: string; createdAt: string }
 export type Summary = { foodCount: number; userCount: number; waitlistCount: number; waitlistLast7d: number }
 export type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
@@ -64,6 +88,10 @@ export const adminApi = {
   addFood: (input: FoodInput) => request<Food>('/v1/admin/foods', { method: 'POST', body: JSON.stringify(input) }),
   updateFood: (id: string, input: FoodInput) => request<Food>(`/v1/admin/foods/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
   deleteFood: (id: string) => request<void>(`/v1/admin/foods/${id}`, { method: 'DELETE' }),
+  quests: () => request<QuestList>('/v1/admin/quests'),
+  addQuest: (input: QuestInput) => request<Quest>('/v1/admin/quests', { method: 'POST', body: JSON.stringify(input) }),
+  updateQuest: (id: string, input: QuestInput) => request<Quest>(`/v1/admin/quests/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteQuest: (id: string) => request<void>(`/v1/admin/quests/${id}`, { method: 'DELETE' }),
   users: (params: { page: number; pageSize: number; query?: string }) =>
     request<Page<User>>(`/v1/admin/users${queryString(params)}`),
   waitlist: (params: { page: number; pageSize: number; query?: string }) =>
