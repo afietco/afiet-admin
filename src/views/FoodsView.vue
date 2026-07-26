@@ -32,18 +32,27 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const submitted = ref(false)
 
+// Bu üç liste backend enum'larının aynasıdır. Geride kalırlarsa panel o değeri
+// atayamaz ve tablo kolonu ham enum anahtarını basar. Backend tarafında
+// TestFoodEnumWhitelistsCoverSchema bu sapmayı yakalıyor; burada karşılığı yok,
+// o yüzden enum genişlerken bu dosya elle güncellenmeli.
 const categories = [
   { value: 'kahvaltilik', label: 'Kahvaltılık' }, { value: 'corba', label: 'Çorba' },
   { value: 'ana_yemek', label: 'Ana yemek' }, { value: 'yan', label: 'Pilav & garnitür' },
   { value: 'salata_yogurt', label: 'Salata & yoğurt' }, { value: 'meyve_kuruyemis', label: 'Meyve & kuruyemiş' },
   { value: 'atistirmalik', label: 'Atıştırmalık' }, { value: 'tatli', label: 'Tatlı' }, { value: 'icecek', label: 'İçecek' },
+  { value: 'temel_gida', label: 'Temel gıda' },
 ]
+// bakliyat, kuruyemis, hamurisi ve icecek migration 000011 ile eklenmişti ama bu
+// liste güncellenmemiş; panel dört grubu hiç atayamıyordu.
 const groups = [
   { value: 'sebze', label: 'Sebze' }, { value: 'meyve', label: 'Meyve' }, { value: 'protein', label: 'Protein' },
-  { value: 'tahil', label: 'Tahıl' }, { value: 'sut', label: 'Süt' }, { value: 'yag', label: 'Yağ' },
+  { value: 'tahil', label: 'Tahıl' }, { value: 'sut', label: 'Süt' }, { value: 'bakliyat', label: 'Bakliyat' },
+  { value: 'yag', label: 'Yağ' }, { value: 'kuruyemis', label: 'Kuruyemiş' },
+  { value: 'hamurisi', label: 'Hamur işi' }, { value: 'icecek', label: 'İçecek' },
   { value: 'tatli', label: 'Tatlı' }, { value: 'fastfood', label: 'Fast food' },
 ]
-const measures = ['adet', 'dilim', 'kase', 'kasik', 'bardak', 'fincan', 'avuc', 'porsiyon'].map((value) => ({ value, label: value[0]!.toUpperCase() + value.slice(1) }))
+const measures = ['adet', 'dilim', 'kase', 'kasik', 'bardak', 'fincan', 'avuc', 'porsiyon', 'gram'].map((value) => ({ value, label: value[0]!.toUpperCase() + value.slice(1) }))
 const statuses = [{ value: '', label: 'Tüm durumlar' }, { value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Pasif' }]
 
 const emptyForm = (): FoodInput => ({ name: '', groups: [], category: '', measure: '', macros: { kcal: 0, protein: 0, carb: 0, fat: 0 }, description: '', active: true })
