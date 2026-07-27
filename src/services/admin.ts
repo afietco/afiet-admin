@@ -42,8 +42,7 @@ export type QuestInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt'>
  * quests were once locked out of this panel.
  */
 export type QuestList = { quests: Quest[]; metrics: string[]; scopes: string[] }
-export type WaitlistEntry = { id: number; email: string; source: string; createdAt: string }
-export type Summary = { foodCount: number; userCount: number; waitlistCount: number; waitlistLast7d: number }
+export type Summary = { foodCount: number; userCount: number }
 export type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 
 function queryString(params: Record<string, string | number | undefined>) {
@@ -79,8 +78,6 @@ export const adminApi = {
   deleteQuest: (id: string) => request<void>(`/v1/admin/quests/${id}`, { method: 'DELETE' }),
   users: (params: { page: number; pageSize: number; query?: string }) =>
     request<Page<User>>(`/v1/admin/users${queryString(params)}`),
-  waitlist: (params: { page: number; pageSize: number; query?: string }) =>
-    request<Page<WaitlistEntry>>(`/v1/admin/waitlist${queryString(params)}`),
   pushBroadcasts: (params: { page: number; pageSize: number }) =>
     request<Page<PushBroadcast>>(`/v1/admin/push/broadcasts${queryString(params)}`),
   pushAudience: (audience: PushAudience) =>

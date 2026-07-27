@@ -10,7 +10,6 @@
 export type TrendPoint = { label: string; value: number }
 export type FunnelStep = { key: string; label: string; value: number; hint: string }
 export type RetentionRow = { key: 'd1' | 'd7' | 'd30'; label: string; days: number; rate: number; cohort: number }
-export type SourceRow = { source: string; count: number }
 export type DistRow = { bucket: string; users: number }
 export type MealTypeRow = { meal: string; label: string; count: number }
 export type EventStat = { key: string; label: string; value: number | null; unit?: string; live: boolean }
@@ -25,8 +24,6 @@ export type GrowthData = {
     new7d: number
     new30d: number
     weeklyTrend: TrendPoint[]
-    waitlistTotal: number
-    waitlistSources: SourceRow[]
     /** false → UTM/ülke/dil kayıt anında toplanmıyor (henüz alan yok). */
     acquisitionTracked: boolean
   }

@@ -5,22 +5,24 @@ import PageHeader from '../components/PageHeader.vue'
 import AdminPlaceholder from '../components/AdminPlaceholder.vue'
 import { type GrowthData } from '../services/growth'
 import { adminApi } from '../services/admin'
+import { betaApi, label, type BetaAdminPayload } from '../services/beta'
 
 // Gerçek veri /v1/admin/growth'tan gelir. Uç erişilemezse (oturumsuz/404/ağ)
 // mock ÜRETİLMEZ; veri null kalır ve sayfa placeholder gösterir.
 const data = ref<GrowthData | null>(null)
+// Edinim kırılımı afiet-web'den ayrı gelir: beta başvuruları landing'in
+// Neon'unda yaşıyor. Bu uç düşerse sayfanın kalanı yine çalışsın diye
+// büyüme verisinden bağımsız tutuldu.
+const beta = ref<BetaAdminPayload | null>(null)
 const loading = ref(true)
 const d = computed(() => data.value)
 
 async function load() {
   loading.value = true
-  try {
-    data.value = await adminApi.growth()
-  } catch {
-    data.value = null
-  } finally {
-    loading.value = false
-  }
+  const [growth, betaRes] = await Promise.allSettled([adminApi.growth(), betaApi.get()])
+  data.value = growth.status === 'fulfilled' ? growth.value : null
+  beta.value = betaRes.status === 'fulfilled' ? betaRes.value : null
+  loading.value = false
 }
 onMounted(load)
 
@@ -39,7 +41,10 @@ const funnelRows = computed(() =>
 const activationRate = computed(() => pct(d.value?.funnel[1]?.value ?? 0, registered.value))
 
 const maxTrend = computed(() => Math.max(...(d.value?.growth.weeklyTrend ?? []).map((p) => p.value), 1))
-const waitlistTotalSrc = computed(() => (d.value?.growth.waitlistSources ?? []).reduce((s, r) => s + r.count, 0))
+// "Nereden duydun?" yanıtlarının toplamı. Başvuru sayısına eşit değil:
+// alan isteğe bağlı, boş bırakanlar bu toplama girmez.
+const heardRows = computed(() => (beta.value?.summary.heard ?? []).filter((r) => r.key))
+const heardTotal = computed(() => heardRows.value.reduce((s, r) => s + r.count, 0))
 const distTotal = computed(() => (d.value?.habit.activeDayDistribution ?? []).reduce((s, r) => s + r.users, 0))
 const mealTotal = computed(() => (d.value?.habit.mealTypes ?? []).reduce((s, r) => s + r.count, 0))
 
@@ -88,14 +93,15 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
           </article>
 
           <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>WAITLIST KAYNAĞI</p><h2>{{ fmt(d.growth.waitlistTotal) }} kişi</h2></div></div>
-            <ul class="src-list">
-              <li v-for="s in d.growth.waitlistSources" :key="s.source">
-                <div class="src-row"><span class="src-name">{{ s.source }}</span><span class="src-val">{{ fmt(s.count) }} · {{ pct(s.count, waitlistTotalSrc) }}%</span></div>
-                <div class="mini-track"><div class="mini-fill violet" :style="{ width: `${pct(s.count, waitlistTotalSrc)}%` }" /></div>
+            <div class="panel-title sm"><div><p>BETA BAŞVURU KAYNAĞI</p><h2>{{ fmt(beta?.total ?? 0) }} başvuru</h2></div></div>
+            <ul class="src-list" v-if="heardRows.length">
+              <li v-for="s in heardRows" :key="s.key">
+                <div class="src-row"><span class="src-name">{{ label.heard(s.key) }}</span><span class="src-val">{{ fmt(s.count) }} · {{ pct(s.count, heardTotal) }}%</span></div>
+                <div class="mini-track"><div class="mini-fill violet" :style="{ width: `${pct(s.count, heardTotal)}%` }" /></div>
               </li>
             </ul>
-            <p class="note-line" v-if="!d.growth.acquisitionTracked"><i class="pi pi-info-circle" /> UTM / ülke / dil kırılımı için kayıt anında alan eklenmeli — henüz toplanmıyor.</p>
+            <p class="note-line" v-else><i class="pi pi-info-circle" /> Henüz "nereden duydun" yanıtı yok; alan başvuruda isteğe bağlı.</p>
+            <p class="note-line" v-if="!d.growth.acquisitionTracked"><i class="pi pi-info-circle" /> UTM / ülke / dil kırılımı için kayıt anında alan eklenmeli, henüz toplanmıyor.</p>
           </article>
         </div>
       </section>
