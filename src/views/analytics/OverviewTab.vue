@@ -17,7 +17,7 @@ const cards = computed(() => {
     { label: 'Görüntülenme', value: t.views, tone: 'green', icon: 'pi pi-eye', note: 'toplam sayfa görüntüleme', delta: t.deltaViews },
     { label: 'Tekil ziyaretçi', value: t.visitors, tone: 'blue', icon: 'pi pi-users', note: 'birinci-taraf çerezle', delta: t.deltaVisitors },
     { label: 'Sayfa / ziyaret', value: t.viewsPerVisit, tone: 'amber', icon: 'pi pi-clone', note: `ort. ${duration(t.avgDuration)} kalış`, delta: null },
-    { label: 'Waitlist dönüşümü', value: t.conversions, tone: 'coral', icon: 'pi pi-sparkles', note: `%${t.conversionRate} ziyaretçi`, delta: null },
+    { label: 'Beta başvurusu', value: t.conversions, tone: 'coral', icon: 'pi pi-sparkles', note: `%${t.conversionRate} ziyaretçi`, delta: null },
   ]
 })
 </script>

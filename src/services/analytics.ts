@@ -36,7 +36,7 @@ export type AnalyticsData = {
     viewsPerVisit: number
     /** Ortalama oturum süresi (sn). */
     avgDuration: number
-    /** Aralıktaki waitlist kaydı. */
+    /** Aralıktaki beta başvurusu. */
     conversions: number
     /** conversions / visitors (%). */
     conversionRate: number
