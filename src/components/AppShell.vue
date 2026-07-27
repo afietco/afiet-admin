@@ -36,7 +36,6 @@ const groups = [
     label: 'İNSANLAR',
     items: [
       { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users' },
-      { to: '/bekleme-listesi', label: 'Bekleme listesi', icon: 'pi pi-inbox', name: 'waitlist' },
       { to: '/beta-basvurulari', label: 'Beta başvuruları', icon: 'pi pi-send', name: 'beta' },
     ],
   },
