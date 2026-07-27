@@ -2,20 +2,10 @@ import { authorizedFetch, signOut } from './auth'
 import type { GrowthData } from './growth'
 import type { PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput } from './push'
 
-export type Macros = { kcal: number; protein: number; carb: number; fat: number }
-export type Food = {
-  id: string
-  name: string
-  groups: string[]
-  category: string
-  measure: string
-  macros: Macros
-  description: string
-  active: boolean
-  createdAt: string
-  updatedAt: string
-}
-export type FoodInput = Omit<Food, 'id' | 'createdAt' | 'updatedAt'>
+// Besin kataloğu tipleri ve uçları services/foods.ts'te yaşar: 16 alan,
+// facet dağılımı ve kendi önbelleği var, bu dosyayı gereksiz şişiriyordu.
+export type { Macros, Food, FoodInput } from './foods'
+
 export type User = {
   userId: string
   email: string
@@ -83,11 +73,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const adminApi = {
   summary: () => request<Summary>('/v1/admin/summary'),
   growth: () => request<GrowthData>('/v1/admin/growth'),
-  foods: (params: { page: number; pageSize: number; query?: string; category?: string; status?: string }) =>
-    request<Page<Food>>(`/v1/admin/foods${queryString(params)}`),
-  addFood: (input: FoodInput) => request<Food>('/v1/admin/foods', { method: 'POST', body: JSON.stringify(input) }),
-  updateFood: (id: string, input: FoodInput) => request<Food>(`/v1/admin/foods/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-  deleteFood: (id: string) => request<void>(`/v1/admin/foods/${id}`, { method: 'DELETE' }),
   quests: () => request<QuestList>('/v1/admin/quests'),
   addQuest: (input: QuestInput) => request<Quest>('/v1/admin/quests', { method: 'POST', body: JSON.stringify(input) }),
   updateQuest: (id: string, input: QuestInput) => request<Quest>(`/v1/admin/quests/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
