@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'seo', redirect: { name: 'analytics' } },
         { path: 'icerik', name: 'content', component: () => import('./views/content/ContentView.vue') },
         { path: 'bildirimler', name: 'push', component: () => import('./views/push/PushView.vue') },
+        { path: 'afi', name: 'afi', component: () => import('./views/afi/AfiView.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
