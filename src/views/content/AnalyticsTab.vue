@@ -22,7 +22,7 @@ const { payload, upsertMetric } = useContentStore()
 const fmt = (n: number) => n.toLocaleString('tr-TR')
 const pct = (n: number, base: number) => (base > 0 ? Math.round((n / base) * 100) : 0)
 
-/** Tüm ölçümleri içerik bilgisiyle CSV indir (Waitlist deseni). */
+/** Tüm ölçümleri içerik bilgisiyle CSV indir. */
 function exportCsv() {
   const metrics = [...payload.value.metrics].sort((a, b) => (a.metricDate < b.metricDate ? 1 : -1))
   if (!metrics.length) {
