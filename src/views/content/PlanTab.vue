@@ -5,40 +5,36 @@ import Button from 'primevue/button'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
 import type { Channel, ContentItem } from '../../services/content'
-import ItemDialog from './ItemDialog.vue'
-import { BOARD_STATUSES, CHANNELS, NEXT_STATUS, channelMeta, formatDate, statusLabel, useContentStore } from './shared'
+import { formatDate } from './shared'
+import { BOARD_STATUSES, CHANNELS, NEXT_STATUS, channelMeta, formatMeta, openEditor, statusLabel, useContentStore } from './shared'
 
+/**
+ * Plan sekmesi = "kutu": tarihi HENÜZ verilmemiş fikirler durum kolonlarında
+ * bekler. Tarih verilen an kart buradan çıkar ve Takvim sekmesinde görünür,
+ * yani aynı iş iki yerde birden durmaz.
+ */
 const toast = useToast()
 const { payload, upsertItem } = useContentStore()
 
 const channelFilter = ref<Channel | 'hepsi'>('hepsi')
 const filterOptions = [{ value: 'hepsi', label: 'Tümü' }, ...CHANNELS.map((c) => ({ value: c.value, label: c.label }))]
-
-const dialogOpen = ref(false)
-const editing = ref<ContentItem | null>(null)
 const archiveOpen = ref(false)
 
 const filtered = computed(() =>
   payload.value.items.filter((i) => channelFilter.value === 'hepsi' || i.channel === channelFilter.value),
 )
+/** Kutu: tarihsizler. Arşiv ayrı blokta (tarihi olsa da olmasa da). */
+const undated = computed(() => filtered.value.filter((i) => !i.plannedAt))
 const columns = computed(() =>
   BOARD_STATUSES.map((s) => ({
     ...s,
-    items: filtered.value
+    items: undated.value
       .filter((i) => i.status === s.value)
-      .sort((a, b) => (a.plannedDate ?? '9999') < (b.plannedDate ?? '9999') ? -1 : 1),
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)),
   })),
 )
 const archived = computed(() => filtered.value.filter((i) => i.status === 'arsiv'))
-
-function openNew() {
-  editing.value = null
-  dialogOpen.value = true
-}
-function openItem(item: ContentItem) {
-  editing.value = item
-  dialogOpen.value = true
-}
+const datedCount = computed(() => filtered.value.filter((i) => i.plannedAt && i.status !== 'arsiv').length)
 
 async function advance(item: ContentItem) {
   const next = NEXT_STATUS[item.status]
@@ -56,8 +52,13 @@ async function advance(item: ContentItem) {
   <div class="tab-body">
     <div class="content-toolbar">
       <SelectButton v-model="channelFilter" :options="filterOptions" option-label="label" option-value="value" :allow-empty="false" />
-      <Button label="Yeni fikir" icon="pi pi-plus" @click="openNew" />
+      <Button label="Yeni fikir" icon="pi pi-plus" @click="openEditor(null, { channel: channelFilter === 'hepsi' ? undefined : channelFilter, plannedAt: null })" />
     </div>
+
+    <p class="analytics-note">
+      <i class="pi pi-inbox" /> Burada <strong>tarihi olmayan</strong> fikirler bekler. Tarih verdiğin an kart takvime geçer
+      (şu an takvimde {{ datedCount }} planlı etkinlik var).
+    </p>
 
     <div class="board">
       <section v-for="col in columns" :key="col.value" class="board-col" :class="`col-${col.value}`">
@@ -66,7 +67,15 @@ async function advance(item: ContentItem) {
           <span class="board-count">{{ col.items.length }}</span>
         </header>
         <p v-if="!col.items.length" class="board-empty">Henüz yok</p>
-        <article v-for="item in col.items" :key="item.id" class="board-card" role="button" tabindex="0" @click="openItem(item)" @keydown.enter="openItem(item)">
+        <article
+          v-for="item in col.items"
+          :key="item.id"
+          class="board-card"
+          role="button"
+          tabindex="0"
+          @click="openEditor(item)"
+          @keydown.enter="openEditor(item)"
+        >
           <div class="board-card-top">
             <Tag :value="channelMeta(item.channel).label" :severity="channelMeta(item.channel).severity" :icon="channelMeta(item.channel).icon" />
             <Button
@@ -82,9 +91,9 @@ async function advance(item: ContentItem) {
           </div>
           <h3 class="board-card-title">{{ item.title }}</h3>
           <div class="board-card-meta">
-            <span v-if="item.plannedDate"><i class="pi pi-calendar" /> {{ formatDate(item.plannedDate) }}</span>
+            <span><i :class="formatMeta(item.format).icon" /> {{ formatMeta(item.format).label }}</span>
+            <span v-if="item.series" class="board-series">{{ item.seriesCode ? `${item.series} ${item.seriesCode}` : item.series }}</span>
             <span v-if="item.slug" class="board-slug">/blog/{{ item.slug }}</span>
-            <a v-if="item.publishedUrl" :href="item.publishedUrl" target="_blank" rel="noopener" class="board-link" @click.stop><i class="pi pi-external-link" /> yayında</a>
           </div>
         </article>
       </section>
@@ -98,13 +107,11 @@ async function advance(item: ContentItem) {
       <ul v-if="archiveOpen && archived.length" class="archive-list">
         <li v-for="item in archived" :key="item.id">
           <Tag :value="channelMeta(item.channel).label" :severity="channelMeta(item.channel).severity" />
-          <button type="button" class="archive-title" @click="openItem(item)">{{ item.title }}</button>
+          <button type="button" class="archive-title" @click="openEditor(item)">{{ item.title }}</button>
           <span class="archive-date">{{ formatDate(item.updatedAt, true) }}</span>
         </li>
       </ul>
       <p v-if="archiveOpen && !archived.length" class="board-empty">Arşiv boş.</p>
     </div>
-
-    <ItemDialog v-model:visible="dialogOpen" :item="editing" :default-channel="channelFilter === 'hepsi' ? undefined : channelFilter" />
   </div>
 </template>

@@ -11,10 +11,15 @@ import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import EmptyState from '../../components/EmptyState.vue'
 import type { ContentItem } from '../../services/content'
-import { CHANNELS, channelMeta, formatDate, latestMetric, toIsoDate, useContentStore } from './shared'
+import { CHANNELS, channelMeta, formatDate, formatMeta, latestMetric, toIsoDate, useContentStore } from './shared'
 
-/** Blog artık Analitik sayfasından otomatik gelir; burada yalnız elle girilen kanallar. */
-const MANUAL_CHANNELS = CHANNELS.filter((c) => c.value !== 'blog')
+/**
+ * Blog istatistikleri Analitik sayfasından otomatik gelir; burada sosyal
+ * platformlar var ve ölçümler ŞİMDİLİK elle giriliyor. Faz 2'de Instagram
+ * (ve sırayla diğerleri) günlük cron ile kendini dolduracak; `source` alanı
+ * bu yüzden şimdiden veride duruyor ve tabloda görünür.
+ */
+const SOCIAL_CHANNELS = CHANNELS.filter((c) => c.value !== 'blog')
 
 const toast = useToast()
 const { payload, upsertMetric } = useContentStore()
@@ -32,17 +37,18 @@ function exportCsv() {
   const itemById = new Map(payload.value.items.map((i) => [i.id, i]))
   const escape = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
   const csv = [
-    'tarih,icerik_id,baslik,kanal,goruntulenme,begeni,yorum,paylasim,kaydetme,tiklama,not',
+    'tarih,icerik_id,baslik,platform,bicim,goruntulenme,begeni,yorum,paylasim,kaydetme,tiklama,kaynak,not',
     ...metrics.map((m) => {
       const item = itemById.get(m.itemId)
       return [
-        m.metricDate, m.itemId, item?.title ?? '', item ? channelMeta(item.channel).label : '',
-        m.views, m.likes, m.comments, m.shares, m.saves, m.clicks, m.notes,
+        m.metricDate, m.itemId, item?.title ?? '',
+        item ? channelMeta(item.channel).label : '', item ? formatMeta(item.format).label : '',
+        m.views, m.likes, m.comments, m.shares, m.saves, m.clicks, m.source, m.notes,
       ].map(escape).join(',')
     }),
   ].join('\n')
   const link = document.createElement('a')
-  link.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }))
+  link.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
   link.download = `afiet-icerik-metrikleri-${new Date().toISOString().slice(0, 10)}.csv`
   link.click()
   URL.revokeObjectURL(link.href)
@@ -65,20 +71,24 @@ const rows = computed(() => {
     .sort((a, b) => (b.last?.metricDate ?? '') < (a.last?.metricDate ?? '') ? -1 : 1)
 })
 
-/** Kanal toplamları — her içeriğin SON ölçümü üzerinden. */
+/**
+ * Platform kartları: yalnız kaydı olan platformlar gösterilir, yoksa beş boş
+ * kart yığılır. Her içeriğin SON ölçümü esas alınır.
+ */
 const channelCards = computed(() =>
-  MANUAL_CHANNELS.map((c) => {
+  SOCIAL_CHANNELS.map((c) => {
     const chRows = rows.value.filter((r) => r.item.channel === c.value)
+    const published = payload.value.items.filter((i) => i.channel === c.value && i.status === 'yayinda').length
     return {
       ...c,
-      published: payload.value.items.filter((i) => i.channel === c.value && i.status === 'yayinda').length,
+      published,
       views: chRows.reduce((s, r) => s + (r.last?.views ?? 0), 0),
       engagement: chRows.reduce((s, r) => s + r.engagement, 0),
+      has: chRows.length > 0 || published > 0,
     }
-  }),
+  }).filter((c) => c.has),
 )
 const totalViews = computed(() => channelCards.value.reduce((s, c) => s + c.views, 0))
-const cardTone = (i: number) => ['green', 'amber', 'blue'][i % 3]
 
 // ── Metrik girme ─────────────────────────────────────────────────────────────
 const metricOpen = ref(false)
@@ -113,6 +123,7 @@ async function saveMetric() {
       views: metricForm.views ?? 0, likes: metricForm.likes ?? 0, comments: metricForm.comments ?? 0,
       shares: metricForm.shares ?? 0, saves: metricForm.saves ?? 0, clicks: metricForm.clicks ?? 0,
       notes: metricForm.notes.trim(),
+      source: 'elle',
     })
     toast.add({ severity: 'success', summary: 'Ölçüm kaydedildi', detail: 'Aynı tarihe yeniden girersen üzerine yazar.', life: 3000 })
     metricOpen.value = false
@@ -122,17 +133,21 @@ async function saveMetric() {
     savingMetric.value = false
   }
 }
-
 </script>
 
 <template>
   <div class="tab-body">
     <div class="content-toolbar">
-      <p class="analytics-note"><i class="pi pi-pencil" /> Instagram ve X metrikleri elle girilir (haftalık fotoğraf önerilir); her içeriğin <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri artık Analitik sayfasından otomatik gelir.</p>
-      <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" /></div>
+      <p class="analytics-note">
+        <i class="pi pi-pencil" /> Sosyal metrikler <strong>şimdilik elle</strong> giriliyor (haftalık fotoğraf önerilir); her içeriğin
+        <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri Analitik sayfasından otomatik gelir.
+        Instagram otomatik çekimi Faz 2'de bu tabloyu kendisi dolduracak.
+      </p>
+      <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" />
+    </div>
 
-    <div class="split-grid">
-      <article v-for="(c, i) in channelCards" :key="c.value" class="metric-card" :class="cardTone(i)">
+    <div v-if="channelCards.length" class="split-grid">
+      <article v-for="(c, i) in channelCards" :key="c.value" class="metric-card" :class="['green', 'amber', 'blue'][i % 3]">
         <div class="metric-top"><span>{{ c.label }}</span><i :class="c.icon" /></div>
         <strong>{{ fmt(c.views) }}</strong>
         <small>görüntülenme · {{ fmt(c.engagement) }} etkileşim · {{ c.published }} yayında</small>
@@ -142,23 +157,50 @@ async function saveMetric() {
 
     <section class="table-card">
       <DataTable :value="rows" data-key="item.id" striped-rows>
-        <template #empty><EmptyState icon="pi pi-chart-bar" title="Henüz ölçüm yok" description="Bir içerik yayına girince satırı burada belirir; 'Ölçüm gir' ile ilk metriği ekle." /></template>
-        <Column header="İçerik" style="min-width: 20rem">
+        <template #empty>
+          <EmptyState
+            icon="pi pi-chart-bar"
+            title="Henüz ölçüm yok"
+            description="Bir içerik yayına girince satırı burada belirir; 'Ölçüm gir' ile ilk metriği ekle."
+          />
+        </template>
+        <Column header="İçerik" style="min-width: 18rem">
           <template #body="{ data }">
             <div class="food-cell">
               <span class="food-glyph">{{ data.item.title.slice(0, 1) }}</span>
-              <div><strong>{{ data.item.title }}</strong><small>{{ channelMeta(data.item.channel).label }}<template v-if="data.item.plannedDate"> · {{ formatDate(data.item.plannedDate) }}</template></small></div>
+              <div>
+                <strong>{{ data.item.title }}</strong>
+                <small>
+                  {{ channelMeta(data.item.channel).label }}
+                  <template v-if="data.item.series"> · {{ data.item.series }} {{ data.item.seriesCode }}</template>
+                  <template v-if="data.item.plannedAt"> · {{ formatDate(data.item.plannedAt) }}</template>
+                </small>
+              </div>
             </div>
           </template>
         </Column>
-        <Column header="Kanal"><template #body="{ data }"><Tag :value="channelMeta(data.item.channel).label" :severity="channelMeta(data.item.channel).severity" /></template></Column>
+        <Column header="Platform">
+          <template #body="{ data }">
+            <Tag :value="channelMeta(data.item.channel).label" :severity="channelMeta(data.item.channel).severity" />
+          </template>
+        </Column>
+        <Column header="Biçim">
+          <template #body="{ data }">
+            <span class="date-cell"><i :class="formatMeta(data.item.format).icon" /> {{ formatMeta(data.item.format).label }}</span>
+          </template>
+        </Column>
         <Column header="Yayın">
           <template #body="{ data }">
             <a v-if="data.item.publishedUrl" :href="data.item.publishedUrl" target="_blank" rel="noopener" class="file-link"><i class="pi pi-external-link" /> aç</a>
             <span v-else class="date-cell">—</span>
           </template>
         </Column>
-        <Column header="Son ölçüm"><template #body="{ data }"><span class="date-cell">{{ data.last ? formatDate(data.last.metricDate, true) : '—' }}</span></template></Column>
+        <Column header="Son ölçüm">
+          <template #body="{ data }">
+            <span class="date-cell">{{ data.last ? formatDate(data.last.metricDate, true) : '—' }}</span>
+            <small v-if="data.last && data.last.source !== 'elle'" class="src-badge">otomatik</small>
+          </template>
+        </Column>
         <Column header="Görüntülenme"><template #body="{ data }"><strong class="num-cell">{{ data.last ? fmt(data.last.views) : '—' }}</strong></template></Column>
         <Column header="Etkileşim"><template #body="{ data }"><span class="num-cell">{{ data.last ? fmt(data.engagement) : '—' }}</span></template></Column>
         <Column header="Tıklama"><template #body="{ data }"><span class="num-cell">{{ data.last ? fmt(data.last.clicks) : '—' }}</span></template></Column>
