@@ -9,17 +9,11 @@ import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
 import TriggerDialog from './TriggerDialog.vue'
 import TimeField from './TimeField.vue'
 import { adminApi } from '../../services/admin'
-import { pushMock } from '../../services/pushMock'
 import {
   isValidPushTime, pushTargetLabel, pushTriggerCondition, pushTriggerMeta,
   type PushBroadcast, type PushGlobalPatch, type PushOverview,
   type PushTrigger, type PushTriggerPatch,
 } from '../../services/push'
-
-// GEÇİCİ: /v1/admin/push/overview, /triggers/{kind} ve /settings uçları
-// backend'de henüz yok. Uçlar açılınca bu sabit false'a çekilir, pushMock
-// importu silinir ve services/pushMock.ts dosyası kaldırılır.
-const USE_MOCK = true
 
 const emit = defineEmits<{ compose: [] }>()
 
@@ -43,16 +37,6 @@ const switches = reactive<Record<string, boolean>>({})
 const quietStart = ref<string | null>(null)
 const quietEnd = ref<string | null>(null)
 const quietSubmitted = ref(false)
-
-const api = {
-  overview: () => USE_MOCK ? pushMock.overview() : adminApi.pushOverview(),
-  updateTrigger: (kind: string, patch: PushTriggerPatch) =>
-    USE_MOCK ? pushMock.updateTrigger(kind, patch) : adminApi.updatePushTrigger(kind, patch),
-  updateGlobals: (patch: PushGlobalPatch) =>
-    USE_MOCK ? pushMock.updateGlobals(patch) : adminApi.updatePushGlobals(patch),
-  cancelBroadcast: (id: string) =>
-    USE_MOCK ? pushMock.cancelScheduled(id) : adminApi.cancelPushBroadcast(id),
-}
 
 const number = (value: number) => value.toLocaleString('tr-TR')
 const percent = (part: number, whole: number) => whole > 0 ? `%${Math.round((part / whole) * 100)}` : 'yok'
@@ -92,7 +76,7 @@ function apply(overview: PushOverview) {
 async function load() {
   loading.value = true
   try {
-    apply(await api.overview())
+    apply(await adminApi.pushOverview())
     live.value = true
   } catch {
     data.value = null
@@ -103,7 +87,7 @@ async function load() {
 async function saveGlobals(patch: PushGlobalPatch, summary: string, severity: 'success' | 'warn' = 'success') {
   savingGlobals.value = true
   try {
-    apply(await api.updateGlobals(patch))
+    apply(await adminApi.updatePushGlobals(patch))
     toast.add({ severity, summary, life: 3000 })
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Ayar kaydedilemedi', detail: err instanceof Error ? err.message : '', life: 4000 })
@@ -141,7 +125,7 @@ function saveQuietHours() {
 async function patchTrigger(trigger: PushTrigger, patch: PushTriggerPatch, summary: string) {
   savingKind.value = trigger.kind
   try {
-    const updated = await api.updateTrigger(trigger.kind, patch)
+    const updated = await adminApi.updatePushTrigger(trigger.kind, patch)
     const index = data.value!.triggers.findIndex((item) => item.kind === trigger.kind)
     if (index >= 0) data.value!.triggers[index] = updated
     switches[trigger.kind] = updated.enabled
@@ -169,7 +153,7 @@ function cancelScheduled(item: PushBroadcast) {
     acceptClass: 'p-button-danger',
     accept: async () => {
       try {
-        await api.cancelBroadcast(item.id)
+        await adminApi.cancelPushBroadcast(item.id)
         if (data.value) data.value.scheduled = data.value.scheduled.filter((row) => row.id !== item.id)
         toast.add({ severity: 'success', summary: 'Gönderim iptal edildi', life: 2500 })
       } catch (err) {
