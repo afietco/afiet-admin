@@ -429,8 +429,20 @@ a { color: inherit; }
    hizalı kalsın (yan yana kısa input + uzun textarea olduğunda kayıyordu). */
 .form-field { align-content: start; }
 
-.dialog-tabs .p-tabpanels { padding: 14px 0 0; background: transparent; }
+/* Diyalog icindeki sekmeler: panel govdesi kendi dolgusunu tasir (sayfa
+   sekmelerinde bu isi .tab-body yapiyor, diyalogda form-grid dogrudan girdigi
+   icin alanlar kenara yapisip alt satir kesiliyordu). */
+.dialog-tabs { box-shadow: none; }
+.dialog-tabs .p-tabpanels { padding: 20px 20px 22px; background: transparent; }
+.dialog-tabs .p-tab { padding: 13px 16px; }
 .dialog-tabs .p-tab .board-count { margin-left: 6px; }
+/* Prompt bolgesi panelin dolgusu icinde kaldigi icin ust bosluk daralir. */
+.dialog-tabs .prompt-zone { margin-top: 18px; }
+/* Devre disi alan (or. "tum gun" isaretliyken Saat) sicak paletle kalsin;
+   PrimeVue'nun varsayilan soguk grisi krem panelde yabanci duruyor. */
+.content-dialog .p-inputtext:disabled,
+.content-dialog .p-datepicker-input:disabled,
+.content-dialog .p-select.p-disabled { border-color: #e8e3d6; background: #f4f1e8; color: #adaea4; opacity: 1; }
 .field-check { display: flex; align-items: center; gap: 7px; margin-top: 6px; color: #6b6e64; font-size: 11px; font-weight: 700; }
 .field-warn { color: #b4741c; font-size: 10.5px; font-weight: 750; }
 .tag-preview { color: #7d8f84; font-size: 10.5px; font-weight: 750; word-break: break-word; }
