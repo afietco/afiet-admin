@@ -90,6 +90,7 @@ const emptyForm = (): QuestInput => ({
   key: '',
   title: '',
   detail: '',
+  narration: '',
   emoji: '🌱',
   metric: '',
   scope: 'lifetime',
@@ -137,6 +138,7 @@ function editQuest(quest: Quest) {
     key: quest.key,
     title: quest.title,
     detail: quest.detail,
+    narration: quest.narration,
     emoji: quest.emoji,
     metric: quest.metric,
     scope: quest.scope,
@@ -152,6 +154,7 @@ function editQuest(quest: Quest) {
 function valid() {
   if (!form.title.trim() || form.title.length > 80) return false
   if (form.detail.length > 200) return false
+  if (form.narration.length > 600) return false
   if (!form.metric) return false
   if (!editing.value && keyInvalid.value) return false
   return true
@@ -357,6 +360,22 @@ onMounted(load)
           <label for="quest-detail">Açıklama</label>
           <Textarea id="quest-detail" v-model="form.detail" rows="3" fluid auto-resize :maxlength="200" />
           <small>{{ form.detail.length }} / 200</small>
+        </div>
+
+        <div class="form-field span-2">
+          <label for="quest-narration">Afi'nin anlatımı</label>
+          <Textarea
+            id="quest-narration"
+            v-model="form.narration"
+            rows="5"
+            fluid
+            auto-resize
+            :maxlength="600"
+          />
+          <small>
+            {{ form.narration.length }} / 600. Uygulamada göreve dokunulunca Afi'nin
+            söylediği metin; boş bırakılırsa açıklama gösterilir.
+          </small>
         </div>
 
         <div class="form-field">

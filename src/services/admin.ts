@@ -26,6 +26,15 @@ export type Quest = {
   key: string
   title: string
   detail: string
+  /**
+   * What Afi says when the quest is opened in the app.
+   *
+   * `detail` is the one-line label under the title in the list and has to stay
+   * short; this is the paragraph behind it, so the rule a quest counts can be
+   * rewritten here instead of in a mobile release. Blank is allowed: the app
+   * falls back to `detail`.
+   */
+  narration: string
   emoji: string
   metric: string
   scope: string
