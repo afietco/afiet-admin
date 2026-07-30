@@ -10,14 +10,15 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import EmptyState from '../../components/EmptyState.vue'
+import AccountsPanel from './AccountsPanel.vue'
 import type { ContentItem } from '../../services/content'
 import { CHANNELS, channelMeta, formatDate, formatMeta, latestMetric, toIsoDate, useContentStore } from './shared'
 
 /**
- * Blog istatistikleri Analitik sayfasından otomatik gelir; burada sosyal
- * platformlar var ve ölçümler ŞİMDİLİK elle giriliyor. Faz 2'de Instagram
- * (ve sırayla diğerleri) günlük cron ile kendini dolduracak; `source` alanı
- * bu yüzden şimdiden veride duruyor ve tabloda görünür.
+ * Sosyal platform ölçümleri. Bağlı hesaplarda (bkz. AccountsPanel) değerler
+ * günlük cron ile otomatik gelir ve `source` alanı 'instagram' olur; bağlı
+ * olmayan platformda elle girilir ve 0 kalan alanlar (erişim, etkileşim)
+ * platformdan beklenendir. Blog istatistikleri Analitik sayfasından gelir.
  */
 const SOCIAL_CHANNELS = CHANNELS.filter((c) => c.value !== 'blog')
 
@@ -37,13 +38,13 @@ function exportCsv() {
   const itemById = new Map(payload.value.items.map((i) => [i.id, i]))
   const escape = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
   const csv = [
-    'tarih,icerik_id,baslik,platform,bicim,goruntulenme,begeni,yorum,paylasim,kaydetme,tiklama,kaynak,not',
+    'tarih,icerik_id,baslik,platform,bicim,goruntulenme,erisim,begeni,yorum,paylasim,kaydetme,tiklama,etkilesim,kaynak,not',
     ...metrics.map((m) => {
       const item = itemById.get(m.itemId)
       return [
         m.metricDate, m.itemId, item?.title ?? '',
         item ? channelMeta(item.channel).label : '', item ? formatMeta(item.format).label : '',
-        m.views, m.likes, m.comments, m.shares, m.saves, m.clicks, m.source, m.notes,
+        m.views, m.reach, m.likes, m.comments, m.shares, m.saves, m.clicks, m.interactions, m.source, m.notes,
       ].map(escape).join(',')
     }),
   ].join('\n')
@@ -65,7 +66,9 @@ const rows = computed(() => {
       return {
         item: i,
         last,
-        engagement: last ? last.likes + last.comments + last.shares + last.saves : 0,
+        // Platform "total_interactions" veriyorsa onu kullan; elle girişte
+        // dört alanın toplamı etkileşimin karşılığıdır.
+        engagement: last ? (last.interactions || last.likes + last.comments + last.shares + last.saves) : 0,
       }
     })
     .sort((a, b) => (b.last?.metricDate ?? '') < (a.last?.metricDate ?? '') ? -1 : 1)
@@ -122,6 +125,8 @@ async function saveMetric() {
       itemId: item.id, metricDate,
       views: metricForm.views ?? 0, likes: metricForm.likes ?? 0, comments: metricForm.comments ?? 0,
       shares: metricForm.shares ?? 0, saves: metricForm.saves ?? 0, clicks: metricForm.clicks ?? 0,
+      reach: 0,
+      interactions: 0,
       notes: metricForm.notes.trim(),
       source: 'elle',
     })
@@ -137,11 +142,13 @@ async function saveMetric() {
 
 <template>
   <div class="tab-body">
+    <AccountsPanel />
+
     <div class="content-toolbar">
       <p class="analytics-note">
-        <i class="pi pi-pencil" /> Sosyal metrikler <strong>şimdilik elle</strong> giriliyor (haftalık fotoğraf önerilir); her içeriğin
-        <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri Analitik sayfasından otomatik gelir.
-        Instagram otomatik çekimi Faz 2'de bu tabloyu kendisi dolduracak.
+        <i class="pi pi-bolt" /> Bağlı hesapların ölçümleri <strong>her sabah otomatik</strong> çekilir ve
+        "otomatik" rozetiyle görünür. Bağlı olmayan platformlarda ölçüm <strong>elle</strong> girilir; her içeriğin
+        <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri Analitik sayfasından gelir.
       </p>
       <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" />
     </div>
@@ -202,6 +209,11 @@ async function saveMetric() {
           </template>
         </Column>
         <Column header="Görüntülenme"><template #body="{ data }"><strong class="num-cell">{{ data.last ? fmt(data.last.views) : '—' }}</strong></template></Column>
+        <Column header="Erişim">
+          <template #body="{ data }">
+            <span class="num-cell">{{ data.last && data.last.reach ? fmt(data.last.reach) : '—' }}</span>
+          </template>
+        </Column>
         <Column header="Etkileşim"><template #body="{ data }"><span class="num-cell">{{ data.last ? fmt(data.engagement) : '—' }}</span></template></Column>
         <Column header="Tıklama"><template #body="{ data }"><span class="num-cell">{{ data.last ? fmt(data.last.clicks) : '—' }}</span></template></Column>
         <Column header="" style="width: 9rem">

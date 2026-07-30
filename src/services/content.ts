@@ -83,6 +83,10 @@ export type ContentMetric = {
   shares: number
   saves: number
   clicks: number
+  /** Platformdan gelen tekil erişim (elle girişte 0). */
+  reach: number
+  /** Platformun "total_interactions" karşılığı (elle girişte 0). */
+  interactions: number
   notes: string
   source: MetricSource
 }

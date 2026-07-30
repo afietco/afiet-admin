@@ -491,9 +491,27 @@ a { color: inherit; }
   .cal-chip-time { display: none; }
 }
 
+/* bağlı hesaplar + eşleşmemiş gönderiler */
+.accounts-block { display: grid; gap: 12px; padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: 16px; background: #fbf9f3; }
+.accounts-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.accounts-head small { display: block; margin-top: 4px; max-width: 46rem; color: #8d9087; font-size: 11px; line-height: 1.5; }
+.accounts-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.accounts-hint { display: block; margin: -6px 0 2px; color: #8d9087; font-size: 11px; line-height: 1.5; }
+.preview-label.mt { margin-top: 6px; }
+.account-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.account-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.account-glyph { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 10px; background: #f1eee4; color: #7c7f76; }
+.account-meta { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.account-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.account-meta small { color: #8d9087; font-size: 10px; }
+.account-result { color: #7d8f84 !important; }
+.link-select { flex: 0 1 16rem; min-width: 11rem; }
+
 /* analitik */
-.analytics-note { display: flex; gap: 8px; align-items: center; margin: 0; padding: 12px 15px; border: 1px solid #cfe6dc; border-radius: 13px; color: #3f6455; background: #eef7f2; font-size: 12px; }
-.analytics-note i { color: var(--green); }
+/* Not kutusu BLOK: flex olduğunda her <strong> ayrı kolon gibi açılıyor ve
+   cümle dağılıyordu. İkon inline kalır. */
+.analytics-note { display: block; margin: 0; padding: 12px 15px; border: 1px solid #cfe6dc; border-radius: 13px; color: #3f6455; background: #eef7f2; font-size: 12px; line-height: 1.65; }
+.analytics-note i { margin-right: 7px; color: var(--green); vertical-align: -1px; }
 .metric-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .metric-card .card-track { margin-top: 12px; }
 .num-cell { color: #333831; font-size: 12px; font-variant-numeric: tabular-nums; }
