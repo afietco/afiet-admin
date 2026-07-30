@@ -38,6 +38,13 @@ tutar.
   bağlantıları 15 dakikalık imzalardır, yani kalıcı link yok.
 - Veri ve tipler afiet-web'in `server/utils/contentTypes.ts`'inin aynasıdır;
   alan eklerken iki repo birlikte güncellenir.
+- Analitik sekmesinin başındaki **Bağlı hesaplar** bölümü (`AccountsPanel.vue`)
+  Instagram bağlantısını yönetir. Ölçümler günlük cron ile otomatik gelir ve
+  "otomatik" rozetiyle görünür; bağlı olmayan platformda elle girilir.
+  Platformda olup takvimde karşılığı bulunamayan gönderiler "eşleşmemiş"
+  listesinde durur ve tek tıkla bir etkinliğe bağlanır.
+- Instagram bağlama akışı **yalnız production'da** çalışır (Meta'ya kayıtlı tek
+  redirect adresi afiet.co'dur); panelde app kimliği yoksa bölüm bunu söyler.
 
 ## Kontroller
 
