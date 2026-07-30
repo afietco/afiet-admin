@@ -337,6 +337,160 @@ a { color: inherit; }
 .import-actions small { color: #7d8f84; font-size: 10px; }
 .footer-left { margin-right: auto; }
 
+/* ── takvim (gün / hafta / ay) ─────────────────────────────────────────────── */
+/* Renkler platforma göre (--pf-*), durum kart kenarındaki şeritle anlatılır.
+   Izgara CSS grid; saat sütunu 1 saat = --hour-h (CalendarTab ile eşleşir). */
+.cal-wrap { --hour-h: 44px; --pf: #8d9087; display: grid; gap: 14px; }
+.cal-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cal-nav { display: flex; align-items: center; gap: 4px; }
+.cal-nav .p-button-icon-only { width: 30px; height: 30px; }
+.cal-title { margin: 0 0 0 8px; color: var(--ink); font-size: 17px; font-weight: 900; letter-spacing: -.02em; text-transform: capitalize; }
+.cal-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cal-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: #8d9087; font-size: 11px; line-height: 1.5; }
+.cal-hint i { margin-top: 2px; color: var(--green); }
+
+/* platform tonları */
+.pf-insta { --pf: #d0577f; }
+.pf-blog { --pf: #059669; }
+.pf-x { --pf: #477e8b; }
+.pf-tiktok { --pf: #4b5563; }
+.pf-youtube { --pf: #dc725c; }
+
+/* ay görünümü */
+.cal-month { border: 1px solid var(--line); border-radius: 16px; background: var(--paper); overflow: hidden; }
+.cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); background: #faf7f0; }
+.cal-month-head span { padding: 9px 10px; color: #83867e; font-size: 10px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.cal-month-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.cal-month-row:last-child { border-bottom: 0; }
+.cal-cell { display: grid; gap: 4px; align-content: start; min-height: 104px; padding: 6px 7px 8px; border-right: 1px solid var(--line); transition: background .12s; }
+.cal-cell:last-child { border-right: 0; }
+.cal-cell.is-other { background: #fbf9f4; }
+.cal-cell.is-other .cal-daynum { color: #bfc0b7; }
+.cal-cell.is-drop { background: #eef7f2; box-shadow: inset 0 0 0 2px #9ed3b8; }
+.cal-cell-head { display: flex; align-items: center; justify-content: space-between; }
+.cal-daynum { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border: 0; border-radius: 999px; background: transparent; color: #55584f; font: inherit; font-size: 12px; font-weight: 850; cursor: pointer; }
+.cal-daynum:hover { background: #efece2; }
+.cal-cell.is-today .cal-daynum { background: var(--green); color: #fff; }
+.cal-add { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 6px; background: transparent; color: #b4b6ac; cursor: pointer; opacity: 0; transition: .12s; }
+.cal-add i { font-size: 10px; }
+.cal-cell:hover .cal-add { opacity: 1; }
+.cal-add:hover { background: #efece2; color: var(--green-dark); }
+.cal-more { justify-self: start; margin-left: 2px; border: 0; background: none; color: #8d9087; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.cal-more:hover { color: var(--green-dark); }
+
+/* etkinlik çipi (ay + tüm gün şeridi) */
+.cal-chip { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 4px 7px; border-left: 3px solid var(--pf); border-radius: 7px; background: color-mix(in srgb, var(--pf) 9%, #fff); color: #3c4039; font-size: 10.5px; font-weight: 750; cursor: pointer; transition: .12s; }
+.cal-chip:hover { background: color-mix(in srgb, var(--pf) 17%, #fff); }
+.cal-chip i { flex: 0 0 auto; font-size: 9px; color: var(--pf); }
+.cal-chip-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 900; color: var(--pf); }
+.cal-chip-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-chip-clip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; color: #8d9087; font-size: 9px; }
+.cal-chip.is-dragging, .cal-event.is-dragging { opacity: .4; }
+/* durum: fikir soluk, üretimde kesikli, yayında dolu */
+.cal-chip.st-fikir, .cal-event.st-fikir { opacity: .72; border-left-style: dotted; }
+.cal-chip.st-uretimde, .cal-event.st-uretimde { border-left-style: dashed; }
+.cal-chip.st-arsiv, .cal-event.st-arsiv { filter: grayscale(1); opacity: .55; }
+
+/* hafta / gün ızgarası */
+.cal-time { display: grid; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); overflow: hidden; }
+.cal-time-head, .cal-allday { display: grid; grid-template-columns: 56px repeat(var(--cols, 7), minmax(0, 1fr)); }
+.cal-time.is-day .cal-time-head, .cal-time.is-day .cal-allday, .cal-time.is-day .cal-grid { --cols: 1; }
+.cal-time-head { border-bottom: 1px solid var(--line); background: #faf7f0; }
+.cal-gutter-head { display: grid; place-items: center; padding: 6px 4px; color: #a0a298; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.cal-dayhead { display: grid; gap: 1px; justify-items: center; padding: 7px 4px; border: 0; border-left: 1px solid var(--line); background: transparent; color: #55584f; font: inherit; cursor: pointer; }
+.cal-dayhead small { color: #93958d; font-size: 9.5px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.cal-dayhead strong { font-size: 15px; font-weight: 900; }
+.cal-dayhead.is-today strong { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 999px; background: var(--green); color: #fff; }
+.cal-dayhead:hover { background: #f3f0e7; }
+.cal-allday { min-height: 34px; border-bottom: 1px solid var(--line); background: #fdfcf7; }
+.cal-allday-cell { display: grid; gap: 3px; align-content: start; padding: 4px; border-left: 1px solid var(--line); }
+.cal-allday-cell.is-drop { background: #eef7f2; box-shadow: inset 0 0 0 2px #9ed3b8; }
+.cal-grid { display: grid; grid-template-columns: 56px repeat(var(--cols, 7), minmax(0, 1fr)); max-height: 560px; overflow-y: auto; }
+.cal-gutter { display: grid; }
+.cal-hour-label { display: block; padding: 2px 8px 0 0; color: #b0b2a8; font-size: 9.5px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; transform: translateY(-6px); }
+.cal-col { position: relative; border-left: 1px solid var(--line); }
+.cal-col.is-today { background: #fcfbf5; }
+.cal-slot { border-bottom: 1px dashed #efece2; }
+.cal-slot:nth-child(even) { border-bottom-style: solid; border-bottom-color: #f4f1e8; }
+.cal-slot.is-drop { background: #eaf6ef; box-shadow: inset 0 0 0 2px #9ed3b8; }
+.cal-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--coral); pointer-events: none; z-index: 3; }
+.cal-now span { position: absolute; left: -4px; top: -4px; width: 7px; height: 7px; border-radius: 50%; background: var(--coral); }
+.cal-event { position: absolute; z-index: 2; display: grid; gap: 2px; align-content: start; min-height: 38px; padding: 4px 7px 5px; border-left: 3px solid var(--pf); border-radius: 8px; background: color-mix(in srgb, var(--pf) 12%, #fff); box-shadow: 0 2px 8px rgba(50,50,40,.07); cursor: pointer; overflow: hidden; transition: box-shadow .12s, background .12s; }
+.cal-event:hover { background: color-mix(in srgb, var(--pf) 20%, #fff); box-shadow: 0 6px 16px rgba(50,50,40,.12); }
+.cal-event-top { display: flex; align-items: center; gap: 5px; color: var(--pf); font-size: 9.5px; font-weight: 900; }
+.cal-event-top i { font-size: 9px; }
+.cal-event-time { font-variant-numeric: tabular-nums; }
+.cal-event-code { padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--pf) 22%, #fff); font-size: 8.5px; }
+.cal-event-title { color: #333831; font-size: 11px; font-weight: 800; line-height: 1.25; }
+.cal-event-meta { display: grid; gap: 1px; color: #7c7f76; font-size: 9.5px; font-weight: 700; }
+
+/* diyalog: sekmeler + ekler */
+/* Alanlar satır yüksekliğine göre gerilmesin: etiket + kontrol hep üstte
+   hizalı kalsın (yan yana kısa input + uzun textarea olduğunda kayıyordu). */
+.form-field { align-content: start; }
+
+/* Diyalog icindeki sekmeler: panel govdesi kendi dolgusunu tasir (sayfa
+   sekmelerinde bu isi .tab-body yapiyor, diyalogda form-grid dogrudan girdigi
+   icin alanlar kenara yapisip alt satir kesiliyordu). */
+.dialog-tabs { box-shadow: none; }
+.dialog-tabs .p-tabpanels { padding: 20px 20px 22px; background: transparent; }
+.dialog-tabs .p-tab { padding: 13px 16px; }
+.dialog-tabs .p-tab .board-count { margin-left: 6px; }
+/* Prompt bolgesi panelin dolgusu icinde kaldigi icin ust bosluk daralir. */
+.dialog-tabs .prompt-zone { margin-top: 18px; }
+/* Devre disi alan (or. "tum gun" isaretliyken Saat) sicak paletle kalsin;
+   PrimeVue'nun varsayilan soguk grisi krem panelde yabanci duruyor. */
+.content-dialog .p-inputtext:disabled,
+.content-dialog .p-datepicker-input:disabled,
+.content-dialog .p-select.p-disabled { border-color: #e8e3d6; background: #f4f1e8; color: #adaea4; opacity: 1; }
+.field-check { display: flex; align-items: center; gap: 7px; margin-top: 6px; color: #6b6e64; font-size: 11px; font-weight: 700; }
+.field-warn { color: #b4741c; font-size: 10.5px; font-weight: 750; }
+.tag-preview { color: #7d8f84; font-size: 10.5px; font-weight: 750; word-break: break-word; }
+.metin-actions { display: flex; justify-content: flex-end; }
+.footer-when { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: #8d9087; font-size: 11px; font-weight: 750; }
+.footer-when i { color: var(--green); font-size: 11px; }
+.src-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: var(--mint); color: #065f46; font-size: 9px; font-weight: 850; }
+
+.attach-panel { display: grid; gap: 12px; }
+.attach-note { display: flex; gap: 8px; align-items: center; margin: 0; padding: 11px 14px; border: 1px solid #cfe6dc; border-radius: 12px; background: #eef7f2; color: #3f6455; font-size: 11.5px; }
+.attach-note.is-warn { border-color: #ecd9b0; background: #fdf6e7; color: #7a5a1d; }
+.attach-note i { color: var(--green); }
+.attach-note.is-warn i { color: var(--amber); }
+.drop-zone { display: grid; gap: 6px; justify-items: center; padding: 22px 16px; border: 1.5px dashed #d5cfbf; border-radius: 14px; background: #fbf9f3; text-align: center; transition: .14s; }
+.drop-zone.is-active { border-color: var(--green); background: #eef7f2; }
+.drop-zone.is-full { opacity: .6; }
+.drop-zone > i { font-size: 22px; color: #b6b8ae; }
+.drop-zone p { margin: 0; color: #55584f; font-size: 12.5px; font-weight: 750; }
+.drop-zone small { color: #9a9c92; font-size: 10px; }
+.link-btn { border: 0; background: none; color: var(--green); font: inherit; font-weight: 850; text-decoration: underline; cursor: pointer; }
+.link-btn:disabled { color: #b0b2a8; cursor: not-allowed; }
+.upload-row { display: flex; align-items: center; gap: 10px; }
+.upload-name { flex: 0 1 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55584f; font-size: 11px; font-weight: 750; }
+.upload-bar { flex: 1; height: 6px; }
+.upload-pct { width: 38px; color: #8d9087; font-size: 10px; font-weight: 850; text-align: right; font-variant-numeric: tabular-nums; }
+.attach-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.attach-item { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; }
+.attach-thumb { width: 46px; height: 46px; flex: 0 0 auto; border-radius: 9px; object-fit: cover; background: #f1eee4; }
+.attach-glyph { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 9px; background: #f1eee4; color: #7c7f76; }
+.attach-glyph i { font-size: 17px; }
+.attach-meta { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.attach-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.attach-meta small { color: #8d9087; font-size: 10px; }
+.attach-meta em { color: var(--amber); font-style: normal; font-weight: 800; }
+.attach-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+
+@media (max-width: 1080px) {
+  .cal-grid, .cal-time-head, .cal-allday { grid-template-columns: 46px repeat(var(--cols, 7), minmax(0, 1fr)); }
+  .cal-cell { min-height: 92px; }
+}
+@media (max-width: 860px) {
+  .cal-toolbar { align-items: flex-start; flex-direction: column; }
+  .cal-actions { width: 100%; }
+  .cal-title { margin-left: 2px; font-size: 15px; }
+  .cal-cell { min-height: 78px; padding: 4px; }
+  .cal-chip-time { display: none; }
+}
+
 /* analitik */
 .analytics-note { display: flex; gap: 8px; align-items: center; margin: 0; padding: 12px 15px; border: 1px solid #cfe6dc; border-radius: 13px; color: #3f6455; background: #eef7f2; font-size: 12px; }
 .analytics-note i { color: var(--green); }
