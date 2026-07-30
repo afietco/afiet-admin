@@ -18,10 +18,33 @@ tutar.
 
 ## Ekranlar
 
-- Genel bakış: katalog, kullanıcı ve bekleme listesi sayaçları
+- Genel bakış: katalog, kullanıcı ve beta başvurusu sayaçları
 - Besin kataloğu: arama, filtreleme, ekleme, düzenleme, pasifleştirme ve silme
 - Kullanıcılar: profil ve temel kullanım sinyalleri
-- Bekleme listesi: web kayıtları, arama ve CSV dışa aktarma (ilk 500 kayıt)
+- Beta başvuruları: web kayıtları, arama ve CSV dışa aktarma
+- İçerik: sosyal medya + blog takvimi (gün/hafta/ay, sürükle-bırak), tarihsiz
+  fikirler için Plan kutusu, ölçümler
+
+### İçerik takvimi notları
+
+- Takvim kütüphanesiz: ızgara CSS grid, tarih matematiği
+  `views/content/calendar.ts`. Saat dilimi **Europe/Istanbul**'a sabittir
+  (paneli başka bir saat diliminden açmak "Pzt 12:30" slotunu kaydırmaz),
+  hafta pazartesi başlar.
+- Etkinliği sürüklemek yalnız zamanı taşır ve anında kaydeder
+  (`/api/admin/content/move`); diğer alanlar ezilmez.
+- Ekler afiet-web üzerinden `gs://afiet-icerik` kovasına **doğrudan** yüklenir
+  (imzalı PUT); dosya panel sunucusundan geçmez. Kova gizlidir, indirme
+  bağlantıları 15 dakikalık imzalardır, yani kalıcı link yok.
+- Veri ve tipler afiet-web'in `server/utils/contentTypes.ts`'inin aynasıdır;
+  alan eklerken iki repo birlikte güncellenir.
+- Analitik sekmesinin başındaki **Bağlı hesaplar** bölümü (`AccountsPanel.vue`)
+  Instagram bağlantısını yönetir. Ölçümler günlük cron ile otomatik gelir ve
+  "otomatik" rozetiyle görünür; bağlı olmayan platformda elle girilir.
+  Platformda olup takvimde karşılığı bulunamayan gönderiler "eşleşmemiş"
+  listesinde durur ve tek tıkla bir etkinliğe bağlanır.
+- Instagram bağlama akışı **yalnız production'da** çalışır (Meta'ya kayıtlı tek
+  redirect adresi afiet.co'dur); panelde app kimliği yoksa bölüm bunu söyler.
 
 ## Kontroller
 
