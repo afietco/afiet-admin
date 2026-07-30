@@ -15,7 +15,7 @@ import { webRequest } from './webApi'
 export type Channel = 'blog' | 'instagram' | 'x' | 'tiktok' | 'youtube'
 export type ContentFormat = 'yazi' | 'reel' | 'carousel' | 'story' | 'post' | 'shorts' | 'video'
 export type ContentStatus = 'fikir' | 'planlandi' | 'uretimde' | 'yayinda' | 'arsiv'
-export type MetricSource = 'elle' | 'instagram' | 'youtube' | 'tiktok' | 'x'
+export type MetricSource = 'elle' | 'csv' | 'instagram' | 'youtube' | 'tiktok' | 'x'
 export type AttachmentStatus = 'bekliyor' | 'hazir'
 export type AttachmentKind = 'video' | 'gorsel' | 'pdf'
 
@@ -204,6 +204,12 @@ export const contentApi = {
     webRequest<AdminContentPayload>('/api/admin/content/metric', { method: 'PUT', body: JSON.stringify(metric) }),
   deleteMetric: (id: number) =>
     webRequest<AdminContentPayload>(`/api/admin/content/metric?id=${id}`, { method: 'DELETE' }),
+  /** Dosyadan gelen ölçümleri tek istekte yazar (panelde eşleştirilmiş satırlar). */
+  importMetrics: (metrics: ContentMetricInput[]) =>
+    webRequest<{ yazilan: number; payload: AdminContentPayload }>('/api/admin/content/metrics-import', {
+      method: 'PUT',
+      body: JSON.stringify({ metrics }),
+    }),
   // ── Ekler: bilet al → doğrudan kovaya PUT → doğrula ───────────────────────
   ticket: (input: { itemId: number; fileName: string; mime: string; sizeBytes: number }) =>
     webRequest<AttachmentUploadTicket>('/api/admin/content/attachment', {

@@ -11,8 +11,9 @@ import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import EmptyState from '../../components/EmptyState.vue'
 import AccountsPanel from './AccountsPanel.vue'
-import type { ContentItem } from '../../services/content'
-import { CHANNELS, channelMeta, formatDate, formatMeta, latestMetric, toIsoDate, useContentStore } from './shared'
+import ImportDialog from './ImportDialog.vue'
+import type { ContentItem, ContentMetric } from '../../services/content'
+import { CHANNELS, SOURCE_LABEL, channelMeta, formatDate, formatMeta, latestMetric, toIsoDate, useContentStore } from './shared'
 
 /**
  * Sosyal platform ölçümleri. Bağlı hesaplarda (bkz. AccountsPanel) değerler
@@ -26,6 +27,8 @@ const toast = useToast()
 const { payload, upsertMetric } = useContentStore()
 
 const fmt = (n: number) => n.toLocaleString('tr-TR')
+/** Rozet metni: elle girilende boş (DataTable slot'u tipsiz `any` verdiği için sarmalandı). */
+const sourceLabel = (metric: ContentMetric | null | undefined) => (metric ? SOURCE_LABEL[metric.source] ?? '' : '')
 const pct = (n: number, base: number) => (base > 0 ? Math.round((n / base) * 100) : 0)
 
 /** Tüm ölçümleri içerik bilgisiyle CSV indir. */
@@ -94,6 +97,7 @@ const channelCards = computed(() =>
 const totalViews = computed(() => channelCards.value.reduce((s, c) => s + c.views, 0))
 
 // ── Metrik girme ─────────────────────────────────────────────────────────────
+const importOpen = ref(false)
 const metricOpen = ref(false)
 const metricItem = ref<ContentItem | null>(null)
 const savingMetric = ref(false)
@@ -150,7 +154,10 @@ async function saveMetric() {
         "otomatik" rozetiyle görünür. Bağlı olmayan platformlarda ölçüm <strong>elle</strong> girilir; her içeriğin
         <strong>son ölçümü</strong> esas alınır. <strong>Blog</strong> istatistikleri Analitik sayfasından gelir.
       </p>
-      <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" />
+      <div class="metric-tools">
+        <Button label="Dosyadan ölçüm al" icon="pi pi-file-import" severity="secondary" outlined @click="importOpen = true" />
+        <Button label="CSV indir" icon="pi pi-download" severity="secondary" outlined @click="exportCsv" />
+      </div>
     </div>
 
     <div v-if="channelCards.length" class="split-grid">
@@ -205,7 +212,7 @@ async function saveMetric() {
         <Column header="Son ölçüm">
           <template #body="{ data }">
             <span class="date-cell">{{ data.last ? formatDate(data.last.metricDate, true) : '—' }}</span>
-            <small v-if="data.last && data.last.source !== 'elle'" class="src-badge">otomatik</small>
+            <small v-if="sourceLabel(data.last)" class="src-badge">{{ sourceLabel(data.last) }}</small>
           </template>
         </Column>
         <Column header="Görüntülenme"><template #body="{ data }"><strong class="num-cell">{{ data.last ? fmt(data.last.views) : '—' }}</strong></template></Column>
@@ -221,6 +228,8 @@ async function saveMetric() {
         </Column>
       </DataTable>
     </section>
+
+    <ImportDialog v-model:visible="importOpen" />
 
     <Dialog v-model:visible="metricOpen" modal :header="`Ölçüm gir — ${metricItem?.title ?? ''}`" :style="{ width: '34rem' }">
       <div class="form-grid">

@@ -452,9 +452,11 @@ a { color: inherit; }
 .src-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: var(--mint); color: #065f46; font-size: 9px; font-weight: 850; }
 
 .attach-panel { display: grid; gap: 12px; }
-.attach-note { display: flex; gap: 8px; align-items: center; margin: 0; padding: 11px 14px; border: 1px solid #cfe6dc; border-radius: 12px; background: #eef7f2; color: #3f6455; font-size: 11.5px; }
+/* .analytics-note ile aynı sebeple BLOK: flex olduğunda içindeki her
+   <strong> ayrı kolon gibi açılıp cümleyi dağıtıyor. */
+.attach-note { display: block; margin: 0; padding: 11px 14px; border: 1px solid #cfe6dc; border-radius: 12px; background: #eef7f2; color: #3f6455; font-size: 11.5px; line-height: 1.6; }
 .attach-note.is-warn { border-color: #ecd9b0; background: #fdf6e7; color: #7a5a1d; }
-.attach-note i { color: var(--green); }
+.attach-note i { margin-right: 7px; color: var(--green); vertical-align: -1px; }
 .attach-note.is-warn i { color: var(--amber); }
 .drop-zone { display: grid; gap: 6px; justify-items: center; padding: 22px 16px; border: 1.5px dashed #d5cfbf; border-radius: 14px; background: #fbf9f3; text-align: center; transition: .14s; }
 .drop-zone.is-active { border-color: var(--green); background: #eef7f2; }
@@ -506,6 +508,14 @@ a { color: inherit; }
 .account-meta small { color: #8d9087; font-size: 10px; }
 .account-result { color: #7d8f84 !important; }
 .link-select { flex: 0 1 16rem; min-width: 11rem; }
+
+.metric-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.import-body { display: grid; gap: 14px; }
+.import-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.import-date { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: #6b6e64; font-size: 11px; font-weight: 750; }
+.import-date .p-datepicker { width: 11rem; }
+.import-list { max-height: 15rem; overflow-y: auto; padding-right: 2px; }
+.account-item.is-muted { opacity: .72; }
 
 /* analitik */
 /* Not kutusu BLOK: flex olduğunda her <strong> ayrı kolon gibi açılıyor ve

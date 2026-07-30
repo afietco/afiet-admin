@@ -3,6 +3,7 @@ import {
   contentApi, emptyContentPayload, mimeForFile, uploadToBucket,
   type AdminContentPayload, type AttachmentKind, type Channel, type ContentAttachment, type ContentFormat,
   type ContentItem, type ContentItemInput, type ContentMetric, type ContentMetricInput, type ContentStatus,
+  type MetricSource,
 } from '../../services/content'
 
 /**
@@ -58,6 +59,14 @@ async function upsertMetric(input: ContentMetricInput): Promise<void> {
   state.payload = await contentApi.putMetric(input)
 }
 
+/** Dosyadan gelen ölçümler: tek istek, dönen sayı yazılan satırdır. */
+async function importMetrics(metrics: ContentMetricInput[]): Promise<number> {
+  if (!state.payload.live) throw new Error(OFFLINE)
+  const { yazilan, payload } = await contentApi.importMetrics(metrics)
+  state.payload = payload
+  return yazilan
+}
+
 /**
  * Ek yükleme üç adım: bilet al → dosyayı DOĞRUDAN kovaya PUT et → doğrula.
  * Ortadaki adım bizim sunucumuzdan geçmez; yarıda kalırsa doğrulama adımı
@@ -107,6 +116,7 @@ export function useContentStore() {
     removeItem,
     moveItem,
     upsertMetric,
+    importMetrics,
     uploadAttachment,
     removeAttachment,
     openAttachment,
@@ -184,6 +194,15 @@ export const NEXT_STATUS: Partial<Record<ContentStatus, ContentStatus>> = {
   fikir: 'planlandi',
   planlandi: 'uretimde',
   uretimde: 'yayinda',
+}
+
+/** Ölçümün kaynağı rozeti: elle girilen rozetsiz kalır. */
+export const SOURCE_LABEL: Partial<Record<MetricSource, string>> = {
+  csv: 'dosya',
+  instagram: 'otomatik',
+  youtube: 'otomatik',
+  tiktok: 'otomatik',
+  x: 'otomatik',
 }
 
 /** Marka kuralı: bir gönderide en fazla 5 etiket (üstü panelde uyarı olur). */
