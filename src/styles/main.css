@@ -598,6 +598,77 @@ strong.num-cell { font-size: 13px; }
   .push-preview { position: static; }
 }
 
+/* Gönder sekmesi artik .tab-body icinde; disardaki panel cercevesini
+   sekme kabugu tasiyor, form karti kendi kenarligini birakiyor. */
+.push-compose { padding: 0; }
+.table-toolbar.flush { min-height: 0; padding: 0; border-bottom: 0; }
+.table-toolbar.flush .block-caption { margin-bottom: 0; }
+
+/* ── Aktif bildirimler ── */
+.global-card { display: grid; gap: 16px; }
+.quiet-row { display: grid; grid-template-columns: 170px 170px minmax(0, 1fr); gap: 14px 18px; align-items: end; }
+.quiet-copy { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.quiet-copy p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.quiet-copy .p-button { flex: none; }
+
+.trigger-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.trigger-card { display: flex; flex-direction: column; gap: 13px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 5px 24px rgba(50, 50, 40, .035); transition: opacity .2s ease; }
+.trigger-card.green { color: var(--green); } .trigger-card.amber { color: var(--amber); }
+.trigger-card.coral { color: var(--coral); } .trigger-card.blue { color: var(--blue); }
+.trigger-card.off { opacity: .62; }
+.trigger-head { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 11px; align-items: start; }
+.trigger-glyph { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px 12px 12px 4px; color: currentColor; background: color-mix(in srgb, currentColor 13%, transparent); font-size: 16px; }
+.trigger-name strong { display: block; color: var(--ink); font-size: .95rem; letter-spacing: -.01em; }
+.trigger-name small { display: block; min-height: 2.15rem; margin-top: 4px; color: var(--muted); font-size: .74rem; line-height: 1.45; }
+/* Satırdaki kartlarin istatistik seridi ayni hizada dursun diye metin
+   blogu iki satirlik yer tutar; tek satirlik metinler de ayni yuksekligi
+   kaplar. */
+.trigger-copy { min-height: 74px; padding: 12px 14px; border-radius: 13px; background: var(--canvas); }
+.trigger-copy strong { display: block; color: var(--ink); font-size: .86rem; overflow-wrap: anywhere; }
+.trigger-copy p { margin: 4px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45; overflow-wrap: anywhere; }
+.trigger-copy-empty, .trigger-copy.compose p { margin: 0; color: #9aa197; font-style: italic; }
+.trigger-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.trigger-stats div { display: grid; gap: 2px; }
+.trigger-stats dt { color: #93958d; font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.trigger-stats dd { margin: 0; color: var(--ink); font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.trigger-foot { display: flex; align-items: center; gap: 9px; margin-top: auto; padding-top: 13px; border-top: 1px solid var(--line); }
+.trigger-foot .p-button { margin-left: auto; }
+.trigger-target { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: .76rem; }
+.trigger-target i { font-size: .7rem; }
+.trigger-target strong { color: var(--green-dark); }
+
+.trigger-dialog-body { display: grid; gap: 17px; }
+.trigger-preview { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--canvas); }
+.trigger-lock { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--canvas); color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.trigger-lock i { margin-top: 2px; color: #9aa197; }
+
+.scheduled-list { display: grid; gap: 9px; }
+.scheduled-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto auto 36px; gap: 14px; align-items: center; padding: 13px 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
+.scheduled-when { display: flex; align-items: center; gap: 7px; color: var(--green-dark); font-size: .78rem; font-weight: 750; }
+.scheduled-copy { min-width: 0; }
+.scheduled-copy strong { display: block; color: var(--ink); font-size: .87rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scheduled-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scheduled-count { color: var(--muted); font-size: .76rem; white-space: nowrap; }
+.scheduled-empty { margin: 0; padding: 22px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); font-size: .84rem; text-align: center; }
+
+@media (max-width: 1240px) {
+  .trigger-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .quiet-row { grid-template-columns: 1fr 1fr; }
+  .quiet-copy { grid-column: 1 / -1; flex-direction: column; align-items: stretch; }
+  .quiet-copy .p-button { width: 100%; }
+  .scheduled-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 9px; }
+  .scheduled-when { grid-column: 1; }
+  .scheduled-row > .p-button { grid-column: 2; grid-row: 1; }
+  .scheduled-copy { grid-column: 1 / -1; }
+  .scheduled-row > .p-tag { grid-column: 1; justify-self: start; }
+  .scheduled-count { grid-column: 2; text-align: right; }
+}
+@media (max-width: 640px) {
+  .trigger-grid { grid-template-columns: 1fr; }
+}
+
 /* ===== BESİN KATALOĞU ===== */
 /* Makro paleti: enerji payı çubuğunun üç serisi. Değerler dataviz altı
    denetiminden geçirildi (açık krem yüzeyde ΔE ve kontrast: hepsi PASS).

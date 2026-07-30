@@ -1,6 +1,9 @@
 import { authorizedFetch, signOut } from './auth'
 import type { GrowthData } from './growth'
-import type { PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput } from './push'
+import type {
+  PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput,
+  PushGlobalPatch, PushOverview, PushTrigger, PushTriggerPatch,
+} from './push'
 
 // Besin kataloğu tipleri ve uçları services/foods.ts'te yaşar: 16 alan,
 // facet dağılımı ve kendi önbelleği var, bu dosyayı gereksiz şişiriyordu.
@@ -89,4 +92,11 @@ export const adminApi = {
     request<PushBroadcast>('/v1/admin/push/broadcasts', { method: 'POST', body: JSON.stringify(input) }),
   cancelPushBroadcast: (id: string) =>
     request<void>(`/v1/admin/push/broadcasts/${id}`, { method: 'DELETE' }),
+  // Aktif bildirimler. Bu üç uç backend'de HENÜZ YOK; açılana kadar
+  // AktifTab.vue sahte veriye düşer (services/pushMock.ts).
+  pushOverview: () => request<PushOverview>('/v1/admin/push/overview'),
+  updatePushTrigger: (kind: string, patch: PushTriggerPatch) =>
+    request<PushTrigger>(`/v1/admin/push/triggers/${kind}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  updatePushGlobals: (patch: PushGlobalPatch) =>
+    request<PushOverview>('/v1/admin/push/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
 }
