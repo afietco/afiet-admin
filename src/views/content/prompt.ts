@@ -1,4 +1,4 @@
-import type { Channel, ContentBrief, ContentItemInput, ContentStatus } from '../../services/content'
+import type { Channel, ContentBrief, ContentFormat, ContentItemInput, ContentStatus } from '../../services/content'
 import { slugify } from '../../services/content'
 
 /**
@@ -13,7 +13,7 @@ import { slugify } from '../../services/content'
  *
  * Şablon değişikliklerinde sürümü artır — üretilen içerikte iz bırakır.
  */
-export const PROMPT_VERSION = 2
+export const PROMPT_VERSION = 3
 
 /** "Claude çıktısını içe aktar" kutusunun beklediği json şekli. */
 export type PlanImport = {
@@ -25,7 +25,23 @@ export type PlanImport = {
 
 type PromptItem = ContentItemInput & { id?: number }
 
-const CHANNEL_NAMES: Record<Channel, string> = { blog: 'blog', instagram: 'Instagram', x: 'X (Twitter)' }
+const CHANNEL_NAMES: Record<Channel, string> = {
+  blog: 'blog',
+  instagram: 'Instagram',
+  x: 'X (Twitter)',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+}
+
+const FORMAT_NAMES: Record<ContentFormat, string> = {
+  yazi: 'blog yazısı',
+  reel: 'reel (dikey kısa video)',
+  carousel: 'carousel (çok kareli gönderi)',
+  story: 'story',
+  post: 'gönderi',
+  shorts: 'Shorts (dikey kısa video)',
+  video: 'video',
+}
 
 const BRAND_BLOCK = `## afiet hakkında
 - afiet: kalori saymak yerine besin gruplarıyla ve doğal ölçülerle (dilim, kase, avuç…) denge kuran, sıcak ve yargısız bir beslenme uygulaması. Tagline: "Sayma, dengele."
@@ -40,8 +56,11 @@ const list = (label: string, values: string[]) =>
 function briefBlock(item: PromptItem): string {
   const b = item.brief
   return [
-    `- Kanal: ${CHANNEL_NAMES[item.channel]}`,
+    `- Platform: ${CHANNEL_NAMES[item.channel]}`,
+    `- Biçim: ${FORMAT_NAMES[item.format]}`,
     line('Başlık (taslak)', item.title),
+    ...(item.series ? [line('Seri', `${item.series}${item.seriesCode ? ` (${item.seriesCode})` : ''}`)] : []),
+    ...(item.hook ? [line('Kanca', item.hook)] : []),
     ...(item.channel === 'blog' ? [line('Slug', item.slug ?? '')] : []),
     line('Hedef kitle', b.audience),
     line('Açı', b.angle),
@@ -155,34 +174,55 @@ published_at:
 }
 
 function socialProductionPrompt(item: PromptItem): string {
-  const format =
-    item.channel === 'instagram'
+  // Çıktı beklentisi BİÇİME göre değişir: reel/shorts senaryo ister, carousel
+  // slayt metni, story tek kare, X thread.
+  const shape =
+    item.format === 'reel' || item.format === 'shorts' || item.format === 'video'
       ? `## Çıktı formatı (sohbette, yayına hazır)
-1. **Hook** — kapak/ilk saniye cümlesi.
-2. **İçerik** — carousel ise slayt slayt metin, reels ise sahne sahne senaryo (görsel yönergeleriyle).
-3. **Caption** — 2-4 cümle + satır arası boşluklu.
-4. **Hashtag** — 5 adet, Türkçe odaklı, spam yok.`
-      : `## Çıktı formatı (sohbette, yayına hazır)
-1. **Thread** — 5–8 tweet; ilk tweet güçlü bir hook, her tweet ≤ 280 karakter, numaralı (1/n).
-2. Gerekirse görsel/ekran görüntüsü önerilerini tweet altına not düş.`
+1. **Kanca** - ilk 3 saniyenin cümlesi (ekranda okunacak metin).
+2. **Senaryo** - sahne sahne: ekran metni + görsel yönerge + süre (toplam 10-20 sn hedefle).
+3. **Caption** - 2-4 cümle, satır arası boşluklu.
+4. **Hashtag** - en fazla 5, Türkçe odaklı, spam yok.
+5. **Alt metin** - görme engelli kullanıcı için tek cümle.`
+      : item.format === 'carousel'
+        ? `## Çıktı formatı (sohbette, yayına hazır)
+1. **Kapak** - kartın üstündeki tek cümle.
+2. **Slaytlar** - slayt slayt metin (en fazla 6 slayt, her biri tek fikir).
+3. **Caption** - 2-4 cümle.
+4. **Hashtag** - en fazla 5.
+5. **Alt metin** - her slayt için tek cümle.`
+        : item.format === 'story'
+          ? `## Çıktı formatı (sohbette, yayına hazır)
+1. **Kare metni** - ekranda görünecek kısa metin (en fazla 2 satır).
+2. **Sticker/anket önerisi** - varsa.
+3. **Alt metin** - tek cümle.`
+          : item.channel === 'x'
+            ? `## Çıktı formatı (sohbette, yayına hazır)
+1. **Thread** - 5-8 tweet; ilk tweet güçlü bir kanca, her tweet en fazla 280 karakter, numaralı (1/n).
+2. Gerekirse görsel önerilerini tweet altına not düş.`
+            : `## Çıktı formatı (sohbette, yayına hazır)
+1. **Gönderi metni** - kanca cümlesiyle başla, 3-5 kısa paragraf.
+2. **Hashtag** - en fazla 5.
+3. **Alt metin** - görsel için tek cümle.`
 
-  return `<!-- afiet içerik promptu v${PROMPT_VERSION} · üretim · ${item.channel} -->
-afiet'in ${CHANNEL_NAMES[item.channel]} hesabı için aşağıdaki brief'e göre yayına hazır içerik metni üreteceksin.
+  return `<!-- afiet içerik promptu v${PROMPT_VERSION} · üretim · ${item.channel}/${item.format} -->
+afiet'in ${CHANNEL_NAMES[item.channel]} hesabı için aşağıdaki brief'e göre yayına hazır bir ${FORMAT_NAMES[item.format]} metni üreteceksin.
 
 ${BRAND_BLOCK}
 
 ## Brief
 ${briefBlock(item)}
 
-${format}
+${shape}
 
 ## Kurallar
 - Her şey Türkçe; marka sesi yukarıdaki gibi (nazik, yargısız, "afiet" hep küçük harf).
 - Tıbbi/kesin sağlık iddiası yapma; genel denge dilinde kal.
+- Kalori, kilo, tartı, "yasak yiyecek" ve suçluluk dili YOK; kesirli ilerleme ("5/7") gösterme.
 - En fazla bir CTA; zorlama satış dili yok.
 
 ## Yayın sonrası
-Metni ben paylaşacağım. Paylaşınca yönetim panelinde bu içeriğin durumunu "yayında" yapıp yayın URL'ini gireceğim — bana hatırlat.`
+Metni ben paylaşacağım. Paylaşınca panelde bu etkinliğin durumunu "yayında" yapıp yayın URL'ini gireceğim - bana hatırlat.`
 }
 
 /**
