@@ -35,6 +35,16 @@ export type Quest = {
    * falls back to `detail`.
    */
   narration: string
+  /**
+   * Görev detayındaki eylem düğmesinin metni ve gideceği ekran.
+   *
+   * Boş ise uygulama metrik ailesinin varsayılanını kullanır
+   * (services/questActions.ts). Hedef serbest rota değil bilinen bir jetondur;
+   * mobil tarafın tanımadığı bir jeton gönderilirse düğme çizilmez. İkisi
+   * birlikte doldurulur: sunucu da veritabanı da yarım aksiyonu reddeder.
+   */
+  actionLabel: string
+  actionTarget: string
   emoji: string
   metric: string
   scope: string
@@ -53,7 +63,13 @@ export type QuestInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt'>
  * would make its quests unsavable, which is exactly how 7 of the 14 seeded
  * quests were once locked out of this panel.
  */
-export type QuestList = { quests: Quest[]; metrics: string[]; scopes: string[] }
+export type QuestList = {
+  quests: Quest[]
+  metrics: string[]
+  scopes: string[]
+  /** Uygulamanın tanıdığı ekran jetonları; form bu listeyi sabit tutmaz. */
+  actionTargets: string[]
+}
 export type Summary = { foodCount: number; userCount: number }
 export type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 
