@@ -44,10 +44,11 @@ const prefRows = computed(() => {
   const prefs = notifications.value.preferences
   if (!prefs) return []
   return [
-    { label: 'Öğün hatırlatması', value: prefs.mealReminderEnabled ? `açık · ${prefs.mealReminderTime}` : 'kapalı', on: prefs.mealReminderEnabled },
+    // Saat yoksa kullanıcı kendi saatini seçmemiş: genel ayar geçerli.
+    { label: 'Öğün hatırlatması', value: prefs.mealReminderEnabled ? `açık · ${prefs.mealReminderTime ?? 'genel ayar'}` : 'kapalı', on: prefs.mealReminderEnabled },
     { label: 'Hafta kapanışı', value: prefs.weekClosureEnabled ? 'açık' : 'kapalı', on: prefs.weekClosureEnabled },
     { label: 'Sosyal bildirimler', value: prefs.socialEnabled ? 'açık' : 'kapalı', on: prefs.socialEnabled },
-    { label: 'Sessiz saatler', value: `${prefs.quietStart} - ${prefs.quietEnd}`, on: true },
+    { label: 'Sessiz saatler', value: prefs.quietStart && prefs.quietEnd ? `${prefs.quietStart} - ${prefs.quietEnd}` : 'genel ayar', on: true },
     { label: 'Saat dilimi', value: prefs.timezone, on: true },
   ]
 })
