@@ -6,6 +6,7 @@ import TabList from 'primevue/tablist'
 import Tab from 'primevue/tab'
 import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
+import SearchPerfTab from '../seo/SearchPerfTab.vue'
 import GeneralTab from '../seo/GeneralTab.vue'
 import PagesTab from '../seo/PagesTab.vue'
 import SchemaFaqTab from '../seo/SchemaFaqTab.vue'
@@ -17,7 +18,7 @@ import { webApi, type AdminSeoPayload } from '../../services/webApi'
 const payload = ref<AdminSeoPayload | null>(null)
 const loading = ref(true)
 const error = ref('')
-const activeTab = ref('genel')
+const activeTab = ref('arama')
 
 async function load() {
   loading.value = true
@@ -61,6 +62,7 @@ onMounted(load)
 
       <Tabs v-model:value="activeTab" class="seo-tabs">
         <TabList>
+          <Tab value="arama">Arama performansı</Tab>
           <Tab value="genel">Genel <span v-if="overriddenSettings.has('general')" class="seo-dot" /></Tab>
           <Tab value="sayfalar">Sayfalar <span v-if="pagesOverridden" class="seo-dot" /></Tab>
           <Tab value="yapisal">Yapısal veri &amp; SSS <span v-if="overriddenSettings.has('schema') || overriddenSettings.has('faq')" class="seo-dot" /></Tab>
@@ -69,6 +71,7 @@ onMounted(load)
           <Tab value="yonlendirme">Yönlendirmeler <span v-if="redirectsOverridden" class="seo-dot" /></Tab>
         </TabList>
         <TabPanels>
+          <TabPanel value="arama"><SearchPerfTab /></TabPanel>
           <TabPanel value="genel"><GeneralTab :payload="payload" @saved="onSaved" /></TabPanel>
           <TabPanel value="sayfalar"><PagesTab :payload="payload" @saved="onSaved" /></TabPanel>
           <TabPanel value="yapisal"><SchemaFaqTab :payload="payload" @saved="onSaved" /></TabPanel>

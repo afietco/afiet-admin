@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import LineChart from '../../components/LineChart.vue'
 import type { AnalyticsData } from '../../services/analytics'
-import { CHANNEL_TONE, duration, fmt, pct, shortDate } from './shared'
+import { CHANNEL_TONE, SERIES_COLORS, duration, fmt, pct, shortDate } from './shared'
 
 const props = defineProps<{ data: AnalyticsData }>()
 
-const maxViews = computed(() => Math.max(...props.data.series.map((p) => p.views), 1))
 const pagesTotal = computed(() => props.data.topPages.reduce((s, p) => s + p.views, 0))
 const channelTotal = computed(() => props.data.channels.reduce((s, c) => s + c.visits, 0))
-// Uzun serilerde her etiketi göstermek kalabalık yapar: ~8 etikete indir.
-const labelEvery = computed(() => Math.ceil(props.data.series.length / 8))
+
+const chartLabels = computed(() => props.data.series.map((p) => shortDate(p.date)))
+const chartSeries = computed(() => [
+  { label: 'Görüntülenme', color: SERIES_COLORS.views, values: props.data.series.map((p) => p.views) },
+  { label: 'Ziyaretçi', color: SERIES_COLORS.visitors, values: props.data.series.map((p) => p.visitors) },
+])
 
 const cards = computed(() => {
   const t = props.data.totals
@@ -37,17 +41,7 @@ const cards = computed(() => {
 
     <article class="panel-card pad chart-card">
       <div class="panel-title sm"><div><p>ZAMAN SERİSİ</p><h2>Görüntülenme & ziyaretçi</h2></div><span class="legend"><span class="lg views" /> görüntülenme <span class="lg visitors" /> ziyaretçi</span></div>
-      <div class="bar-chart tall">
-        <div v-for="(p, i) in data.series" :key="p.date" class="bar-col">
-          <div class="bar-track">
-            <div class="bar-stack">
-              <div class="bar-fill" :style="{ height: `${Math.max(3, pct(p.views, maxViews))}%` }" />
-              <div class="bar-fill visitors" :style="{ height: `${Math.max(2, pct(p.visitors, maxViews))}%` }" />
-            </div>
-          </div>
-          <span class="bar-label" :class="{ hide: i % labelEvery !== 0 }">{{ shortDate(p.date) }}</span>
-        </div>
-      </div>
+      <LineChart :labels="chartLabels" :series="chartSeries" :height="210" />
     </article>
 
     <div class="split-grid">

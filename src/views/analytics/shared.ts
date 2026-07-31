@@ -61,3 +61,9 @@ export function shortDate(value: string, withYear = false): string {
 export const CHANNEL_TONE: Record<string, string> = {
   search: 'green', direct: 'blue', social: 'violet', referral: 'coral', campaign: 'amber',
 }
+
+/**
+ * Zaman serisi çizgi renkleri. Çift, dataviz doğrulayıcısından geçti
+ * (CVD ayrımı + kontrast, --paper yüzeyinde): yeşili açık minte GERİ ÇEKME.
+ */
+export const SERIES_COLORS = { views: '#059669', visitors: '#2f6fd6' } as const
