@@ -22,7 +22,7 @@ const profile = computed(() => props.detail.profile)
     olduğu görünsün. */
 const identity = computed(() => [
   { label: 'Görünen ad', value: profile.value.displayName || '—' },
-  { label: 'Kullanıcı adı', value: profile.value.username ? `@${profile.value.username}` : 'seçilmemiş' },
+  { label: 'Arkadaş kodu', value: profile.value.friendCode || '—' },
   { label: 'E-posta', value: profile.value.email },
   { label: 'Emoji', value: profile.value.emoji || '—' },
 ])

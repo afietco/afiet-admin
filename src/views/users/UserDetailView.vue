@@ -125,7 +125,7 @@ onMounted(load)
             </div>
             <p>
               {{ detail.profile.email }}
-              <template v-if="detail.profile.username"> · @{{ detail.profile.username }}</template>
+              <template v-if="detail.profile.friendCode"> · {{ detail.profile.friendCode }}</template>
             </p>
           </div>
         </div>
