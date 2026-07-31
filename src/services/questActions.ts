@@ -19,6 +19,13 @@ export type QuestActionTarget = {
   hint: string
 }
 
+/**
+ * Jetonların etiketleri ve ne yaptıkları.
+ *
+ * Seçilebilir hedeflerin LİSTESİ sunucudan gelir (`actionTargets`); bu dizi
+ * yalnız o jetonların insan tarafını taşır. Sunucunun gönderdiği bir jeton
+ * burada yoksa panel jetonun kendisini yazar ve düğme yine çalışır.
+ */
 export const QUEST_ACTION_TARGETS: QuestActionTarget[] = [
   { value: 'ekle', label: 'Öğün ekle', hint: 'Bugün ekranına gider ve besin ekleme sayfasını açar' },
   { value: 'bugun', label: 'Bugün', hint: 'Bugün sekmesini açar' },

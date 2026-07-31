@@ -17,28 +17,24 @@ import ProgressTab from './ProgressTab.vue'
 import NotifyTab from './NotifyTab.vue'
 import ManageTab from './ManageTab.vue'
 import ProfileDialog from './ProfileDialog.vue'
-import { auth } from '../../services/auth'
-import type { User } from '../../services/admin'
 import {
   statusOf, STATUS_META, usersApi,
-  type AuditEntry, type UserDetail, type UserDetailResult, type UserProfilePatch, type UserStatus,
+  type UserDetail, type UserDetailResult, type UserProfilePatch, type UserStatus,
 } from '../../services/users'
 import { ago, date, initial, num } from './shared'
 
 /**
- * Kullanıcı detayı.
+ * Kullanıcı detayı: tek istek, altı sekme.
  *
- * Faz 1: ekran tasarımı. Yalnız liste sayaçları ve tecrübe defteri canlı;
- * ötekiler sözleşmeye uygun demo veriyle çiziliyor ve her bölüm kaynağını
- * rozetle söylüyor. Yazma uçları açılınca WRITABLE true olur.
+ * Yönetim sekmesindeki yazma işlemleri gerçek uçlara gider ve her biri
+ * sunucuda denetim defterine satır düşer; ekran o defteri aynı yanıttan okur,
+ * yani "yaptım" demekle "yazıldı" demek aynı şey.
  */
-const WRITABLE = false
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
-const user = ref<User | null>(null)
 const result = ref<UserDetailResult | null>(null)
 const loading = ref(true)
 const error = ref('')
@@ -47,8 +43,15 @@ const editing = ref(false)
 const saving = ref(false)
 
 const detail = computed<UserDetail | null>(() => result.value?.detail ?? null)
-const status = computed<UserStatus>(() => (user.value ? statusOf(user.value) : 'hic'))
-const actor = computed(() => auth.user?.email ?? 'admin')
+const status = computed<UserStatus>(() =>
+  detail.value
+    ? statusOf({
+        mealCount: detail.value.usage.mealCount,
+        measurementCount: detail.value.usage.measurementCount,
+        lastActivityAt: detail.value.usage.lastActivityAt,
+        createdAt: detail.value.profile.createdAt,
+      })
+    : 'hic')
 
 const hero = computed(() => {
   if (!detail.value) return []
@@ -64,13 +67,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const found = await usersApi.byId(String(route.params.userId))
-    if (!found) {
-      error.value = 'Bu kimlikle bir kullanıcı bulunamadı.'
-      return
-    }
-    user.value = found
-    result.value = await usersApi.detail(found)
+    result.value = await usersApi.detail(String(route.params.userId))
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Kullanıcı alınamadı.'
   } finally {
@@ -78,31 +75,23 @@ async function load() {
   }
 }
 
-function saveProfile(patch: UserProfilePatch) {
+async function saveProfile(patch: UserProfilePatch) {
   saving.value = true
-  // Faz 2'de burada PATCH /v1/admin/users/{id} çağrılacak. Şimdilik yalnız
-  // ekrandaki kopya güncelleniyor ki formun sonucu görülebilsin.
-  window.setTimeout(() => {
-    if (detail.value) Object.assign(detail.value.profile, patch)
-    saving.value = false
+  try {
+    await usersApi.updateProfile(String(route.params.userId), patch)
     editing.value = false
-    addAudit({
-      at: new Date().toISOString(),
-      actor: actor.value,
-      action: WRITABLE ? 'Profil güncellendi' : 'Profil güncellendi (prova)',
-      detail: Object.keys(patch).join(', '),
-    })
+    toast.add({ severity: 'success', summary: 'Profil güncellendi', life: 2500 })
+    // Yanıt yalnız profili döner; denetim defteri ve durum etiketi de
+    // değiştiği için tüm detay tazelenir.
+    await load()
+  } catch (err) {
     toast.add({
-      severity: WRITABLE ? 'success' : 'info',
-      summary: WRITABLE ? 'Profil güncellendi' : 'Profil güncellendi (prova)',
-      detail: WRITABLE ? '' : 'Yazma ucu açılmadığı için sunucuya gitmedi.',
-      life: 3000,
+      severity: 'error', summary: 'Kaydedilemedi',
+      detail: err instanceof Error ? err.message : '', life: 4500,
     })
-  }, 250)
-}
-
-function addAudit(entry: AuditEntry) {
-  detail.value?.audit.unshift(entry)
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(load)
@@ -117,7 +106,7 @@ onMounted(load)
     <div v-if="loading" class="seo-loading"><i class="pi pi-spin pi-spinner" /> Kullanıcı yükleniyor…</div>
 
     <AdminPlaceholder
-      v-else-if="error || !detail || !user"
+      v-else-if="error || !detail"
       icon="pi pi-user"
       :title="error || 'Kullanıcı bulunamadı'"
       description="Liste sayfasından bir kullanıcı seçerek tekrar deneyebilirsin."
@@ -189,10 +178,10 @@ onMounted(load)
             <ManageTab
               v-if="activeTab === 'yonetim'"
               :detail="detail"
-              :writable="WRITABLE"
-              :actor="actor"
+              :user-id="String(route.params.userId)"
               @edit="editing = true"
-              @audit="addAudit"
+              @changed="load"
+              @deleted="router.push({ name: 'users' })"
             />
           </TabPanel>
         </TabPanels>
@@ -202,7 +191,6 @@ onMounted(load)
         v-model:visible="editing"
         :profile="detail.profile"
         :saving="saving"
-        :writable="WRITABLE"
         @save="saveProfile"
       />
     </template>

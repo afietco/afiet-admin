@@ -35,13 +35,12 @@ function toggle(id: string) {
 
 <template>
   <div class="detail-body">
-    <div class="detail-banner">
+    <div v-if="sources.sessions === 'demo'" class="detail-banner">
       <i class="pi pi-info-circle" />
       <p>
-        Oturum verisi mobil telemetrisinden gelir. Şu an event sözlüğünde oturum event'i yok;
-        bu sekmedeki her sayı ekranın nasıl görüneceğini göstermek için üretilmiş demo veridir.
-        Mobil tarafı <strong>session_start / session_end / screen_view</strong> göndermeye başladığında
-        aynı ekran gerçek veriyi çizer.
+        Bu kullanıcıdan son 30 günde oturum verisi gelmemiş. Oturumlar mobil telemetrisinden
+        (<strong>session_start / session_end / screen_view</strong>) gelir; kullanıcı bu event'leri
+        gönderen sürüme henüz geçmediyse ya da uygulamayı hiç açmadıysa burası boş kalır.
       </p>
       <SourceChip :source="sources.sessions" />
     </div>

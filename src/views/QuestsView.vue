@@ -17,7 +17,7 @@ import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 import QuestPreview from './QuestPreview.vue'
 import { adminApi, type Quest, type QuestInput } from '../services/admin'
-import { effectiveAction, QUEST_ACTION_TARGETS, questTargetLabel } from '../services/questActions'
+import { effectiveAction, questTargetLabel } from '../services/questActions'
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -25,6 +25,7 @@ const rows = ref<Quest[]>([])
 // Populated from the API so the form can never drift from the quest_metric enum.
 const metrics = ref<string[]>([])
 const scopes = ref<string[]>([])
+const actionTargets = ref<string[]>([])
 const loading = ref(false)
 const dialogOpen = ref(false)
 const saving = ref(false)
@@ -89,29 +90,18 @@ const inertCount = computed(() =>
 )
 
 /**
- * Aksiyon taslakları.
- *
- * `actionLabel` / `actionTarget` sütunları quest_definitions'a Faz 2'de
- * eklenecek; o zamana kadar panel bunları sunucuya GÖNDERMEZ. Yazılan değer
- * bu oturum boyunca burada durur ki tasarım listede ve önizlemede görülebilsin,
- * ve satırda "taslak" rozetiyle işaretlenir. Sayfa yenilenince taslak kaybolur.
+ * Hedef listesi sunucudan gelir (metrik listesiyle aynı sebep: form, uygulamanın
+ * tanıdığı kümeden ayrışamasın). Etiketleri questActions.ts taşır; sunucunun
+ * gönderdiği ama panelin tanımadığı bir jeton olursa jetonun kendisi yazılır.
  */
-const ACTION_PERSISTED = false
-const drafts = reactive(new Map<string, { actionLabel: string; actionTarget: string }>())
-
-const targetOptions = [
+const targetOptions = computed(() => [
   { value: '', label: 'Metrik ailesinin varsayılanı' },
-  ...QUEST_ACTION_TARGETS.map((target) => ({ value: target.value, label: target.label })),
-]
+  ...actionTargets.value.map((value) => ({ value, label: questTargetLabel(value) })),
+])
 
-/** Satırın gösterdiği aksiyon: taslak varsa o, yoksa sunucudaki, o da yoksa varsayılan. */
+/** Satırın gösterdiği aksiyon; boşsa metrik ailesinin varsayılanı. */
 function actionOf(quest: Quest) {
-  const draft = drafts.get(quest.id)
-  return effectiveAction({
-    metric: quest.metric,
-    actionLabel: draft?.actionLabel ?? quest.actionLabel,
-    actionTarget: draft?.actionTarget ?? quest.actionTarget,
-  })
+  return effectiveAction(quest)
 }
 
 const emptyForm = (): QuestInput => ({
@@ -141,6 +131,7 @@ async function load() {
     rows.value = result.quests
     metrics.value = result.metrics
     scopes.value = result.scopes
+    actionTargets.value = result.actionTargets ?? []
   } catch (err) {
     toast.add({
       severity: 'error',
@@ -164,14 +155,13 @@ function createQuest() {
 
 function editQuest(quest: Quest) {
   editing.value = quest
-  const draft = drafts.get(quest.id)
   Object.assign(form, {
     key: quest.key,
     title: quest.title,
     detail: quest.detail,
     narration: quest.narration,
-    actionLabel: draft?.actionLabel ?? quest.actionLabel ?? '',
-    actionTarget: draft?.actionTarget ?? quest.actionTarget ?? '',
+    actionLabel: quest.actionLabel,
+    actionTarget: quest.actionTarget,
     emoji: quest.emoji,
     metric: quest.metric,
     scope: quest.scope,
@@ -204,23 +194,13 @@ async function save() {
   submitted.value = true
   if (!valid()) return
   saving.value = true
-  // Aksiyon alanları sunucuya gitmiyor (sütunlar henüz yok); gövdeden ayrılır
-  // ki backend'e tanımadığı alan gönderilmesin.
-  const { actionLabel, actionTarget, ...payload } = form
   try {
-    const saved = editing.value
-      ? await adminApi.updateQuest(editing.value.id, payload)
-      : await adminApi.addQuest(payload)
-    if (!ACTION_PERSISTED && (actionLabel?.trim() || actionTarget)) {
-      drafts.set(saved.id, { actionLabel: actionLabel ?? '', actionTarget: actionTarget ?? '' })
-    }
+    if (editing.value) await adminApi.updateQuest(editing.value.id, form)
+    else await adminApi.addQuest(form)
     toast.add({
       severity: 'success',
       summary: editing.value ? 'Görev güncellendi' : 'Görev eklendi',
-      detail: !ACTION_PERSISTED && (actionLabel?.trim() || actionTarget)
-        ? 'Aksiyon alanı kaydedilmedi: sütunlar backend’e Faz 2’de eklenecek.'
-        : '',
-      life: 3500,
+      life: 2500,
     })
     dialogOpen.value = false
     await load()
@@ -360,8 +340,7 @@ onMounted(load)
               <strong>{{ actionOf(data)!.label }}</strong>
               <small>
                 {{ questTargetLabel(actionOf(data)!.target) }}
-                <em v-if="drafts.has(data.id)" class="draft-flag">taslak</em>
-                <em v-else-if="!actionOf(data)!.custom" class="default-flag">varsayılan</em>
+                <em v-if="!actionOf(data)!.custom" class="default-flag">varsayılan</em>
               </small>
             </div>
             <span v-else class="muted-status">düğme yok</span>
@@ -451,10 +430,7 @@ onMounted(load)
           </small>
         </div>
 
-        <div class="section-rule span-4">
-          <span>EYLEM DÜĞMESİ</span>
-          <em v-if="!ACTION_PERSISTED">henüz kaydedilmiyor</em>
-        </div>
+        <div class="section-rule span-4"><span>EYLEM DÜĞMESİ</span></div>
 
         <div class="form-field span-2">
           <label for="quest-action-label">Düğme metni</label>
@@ -492,10 +468,6 @@ onMounted(load)
           </small>
         </div>
 
-        <Message v-if="!ACTION_PERSISTED" severity="info" :closable="false" class="span-4">
-          Bu iki alan quest_definitions'a Faz 2'de eklenecek. Şimdilik kaydedilmez; yazdığın değer
-          bu oturum boyunca listede "taslak" olarak görünür.
-        </Message>
 
         <div class="form-field">
           <label for="quest-emoji">Emoji</label>

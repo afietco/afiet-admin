@@ -4,11 +4,10 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { ACTIVITY_LABELS, SEX_LABELS, type UserProfile, type UserProfilePatch } from '../../services/users'
 
-const props = defineProps<{ visible: boolean; profile: UserProfile; saving: boolean; writable: boolean }>()
+const props = defineProps<{ visible: boolean; profile: UserProfile; saving: boolean }>()
 const emit = defineEmits<{ 'update:visible': [boolean]; save: [UserProfilePatch] }>()
 
 const form = reactive({
@@ -52,19 +51,28 @@ watch(
   { immediate: true },
 )
 
+/**
+ * Boş dize "temizle" demektir, null "dokunma".
+ *
+ * Sunucu yaması alanı YOKSA dokunmaz, BOŞ DİZE ise sütunu boşaltır (bkz.
+ * handleAdminUpdateUserProfile). Bu form her alanı birlikte gönderdiği için
+ * hepsi dize olarak gider; boy sayısal olduğundan temizlenemez, yalnız
+ * değiştirilebilir — verilmediğinde alan hiç gönderilmez.
+ */
 function save() {
   submitted.value = true
   if (usernameInvalid.value || emailInvalid.value) return
-  emit('save', {
-    displayName: form.displayName.trim() || null,
-    emoji: form.emoji.trim() || null,
-    username: form.username.trim() || null,
+  const patch: UserProfilePatch = {
+    displayName: form.displayName.trim(),
+    emoji: form.emoji.trim(),
+    username: form.username.trim(),
     email: form.email.trim(),
-    sex: form.sex,
-    birthDate: form.birthDate || null,
-    heightCm: form.heightCm,
-    activityLevel: form.activityLevel,
-  })
+    sex: form.sex ?? '',
+    birthDate: form.birthDate.trim(),
+    activityLevel: form.activityLevel ?? '',
+  }
+  if (form.heightCm != null) patch.heightCm = form.heightCm
+  emit('save', patch)
 }
 </script>
 
@@ -76,10 +84,6 @@ function save() {
     :style="{ width: '42rem' }"
     @update:visible="emit('update:visible', $event)"
   >
-    <Message v-if="!writable" severity="warn" :closable="false" class="dialog-note">
-      Yazma ucu henüz açık değil. Kaydet düğmesi akışı gösterir, sunucuya bir şey yazmaz.
-    </Message>
-
     <div class="form-grid">
       <div class="form-field span-2">
         <label for="edit-name">Görünen ad</label>
@@ -102,6 +106,7 @@ function save() {
         <InputText id="edit-email" v-model="form.email" fluid :invalid="submitted && emailInvalid" />
         <small class="field-hint">
           Burada değişen adres yalnız uygulama profilidir; giriş sağlayıcısındaki (Stack) adresi değiştirmez.
+          Kullanıcı adını boş bırakmak adı serbest bırakır.
         </small>
       </div>
 

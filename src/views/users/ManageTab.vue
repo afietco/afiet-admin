@@ -3,23 +3,22 @@ import { computed, reactive, ref } from 'vue'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
-import Message from 'primevue/message'
 import Select from 'primevue/select'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import type { AuditEntry, UserDetail } from '../../services/users'
+import { usersApi, type UserDetail } from '../../services/users'
 import { dateTime, num } from './shared'
 
 /**
  * Yönetim sekmesi.
  *
- * Buradaki her işlem geri alınması zor ya da imkânsız olduğu için hepsi onay
- * diyaloğundan geçer ve denetim defterine satır yazar. Yazma uçları Faz 2'de
- * geleceği için `writable` kapalıyken düğmeler akışı gösterir ve deftere
- * "prova" satırı düşer; sunucuya hiçbir şey gitmez.
+ * Buradaki her işlem geri alınması zor ya da imkânsız; hepsi onay
+ * diyaloğundan geçer ve sunucuda denetim defterine satır yazar. Defteri de
+ * aynı yanıttan okuyoruz, yani ekranda "yaptım" yazması sunucuda yazıldığı
+ * anlamına gelir.
  */
-const props = defineProps<{ detail: UserDetail; writable: boolean; actor: string }>()
-const emit = defineEmits<{ edit: []; audit: [AuditEntry] }>()
+const props = defineProps<{ detail: UserDetail; userId: string }>()
+const emit = defineEmits<{ edit: []; changed: []; deleted: [] }>()
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -27,6 +26,7 @@ const confirm = useConfirm()
 const deleteConfirmation = ref('')
 const xp = reactive({ amount: 0, reason: '' })
 const questKey = ref('')
+const busy = ref('')
 
 const questOptions = computed(() =>
   props.detail.gamification.quests.map((quest) => ({
@@ -37,19 +37,28 @@ const questOptions = computed(() =>
 const canDelete = computed(() =>
   deleteConfirmation.value.trim().toLocaleLowerCase('tr') === props.detail.profile.email.toLocaleLowerCase('tr'))
 
-function record(action: string, detail: string) {
-  emit('audit', {
-    at: new Date().toISOString(),
-    actor: props.actor,
-    action: props.writable ? action : `${action} (prova)`,
-    detail,
-  })
-  toast.add({
-    severity: props.writable ? 'success' : 'info',
-    summary: props.writable ? action : `${action} (prova)`,
-    detail: props.writable ? detail : 'Yazma ucu açılmadığı için sunucuya gitmedi.',
-    life: 3500,
-  })
+/**
+ * Ortak yürütücü: işlemi koşar, sonucu söyler, defteri tazeler.
+ *
+ * Tazeleme çağıranın işi değil: her yazma denetim defterine satır düşürüyor ve
+ * ekran onu göstermezse "yazıldı mı" sorusu ekranda cevapsız kalıyor.
+ */
+async function run(key: string, action: string, work: () => Promise<unknown>) {
+  busy.value = key
+  try {
+    await work()
+    toast.add({ severity: 'success', summary: action, life: 3000 })
+    emit('changed')
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: `${action}: olmadı`,
+      detail: err instanceof Error ? err.message : '',
+      life: 5000,
+    })
+  } finally {
+    busy.value = ''
+  }
 }
 
 function resetOnboarding() {
@@ -59,7 +68,8 @@ function resetOnboarding() {
     icon: 'pi pi-refresh',
     rejectLabel: 'Vazgeç',
     acceptLabel: 'Sıfırla',
-    accept: () => record('Tanışma akışı sıfırlandı', props.detail.profile.email),
+    accept: () => run('onboarding', 'Tanışma akışı sıfırlandı',
+      () => usersApi.resetOnboarding(props.userId)),
   })
 }
 
@@ -71,9 +81,21 @@ function removeAccount() {
     rejectLabel: 'Vazgeç',
     acceptLabel: 'Kalıcı olarak sil',
     acceptClass: 'p-button-danger',
-    accept: () => {
-      record('Hesap silindi', props.detail.profile.email)
-      deleteConfirmation.value = ''
+    accept: async () => {
+      busy.value = 'delete'
+      try {
+        await usersApi.deleteUser(props.userId, props.detail.profile.email)
+        deleteConfirmation.value = ''
+        toast.add({ severity: 'success', summary: 'Hesap silindi', life: 3000 })
+        emit('deleted')
+      } catch (err) {
+        toast.add({
+          severity: 'error', summary: 'Silinemedi',
+          detail: err instanceof Error ? err.message : '', life: 5000,
+        })
+      } finally {
+        busy.value = ''
+      }
     },
   })
 }
@@ -89,8 +111,9 @@ function adjustXp() {
     icon: 'pi pi-pencil',
     rejectLabel: 'Vazgeç',
     acceptLabel: 'Deftere yaz',
-    accept: () => {
-      record('Tecrübe düzeltildi', `${xp.amount > 0 ? '+' : ''}${String(xp.amount)} XP · ${xp.reason.trim()}`)
+    accept: async () => {
+      await run('xp', 'Tecrübe düzeltildi',
+        () => usersApi.adjustXp(props.userId, xp.amount, xp.reason.trim()))
       xp.amount = 0
       xp.reason = ''
     },
@@ -109,8 +132,9 @@ function completeQuest() {
     icon: 'pi pi-check-circle',
     rejectLabel: 'Vazgeç',
     acceptLabel: 'Tamamlandı işaretle',
-    accept: () => {
-      record('Görev tamamlandı işaretlendi', quest.title)
+    accept: async () => {
+      await run('quest', 'Görev tamamlandı işaretlendi',
+        () => usersApi.completeQuest(props.userId, quest.key))
       questKey.value = ''
     },
   })
@@ -119,11 +143,6 @@ function completeQuest() {
 
 <template>
   <div class="detail-body">
-    <Message v-if="!writable" severity="warn" :closable="false">
-      Yazma uçları henüz backend'de yok. Bu sekmedeki düğmeler onay akışını ve denetim defterini gösterir,
-      sunucuya hiçbir şey yazmaz. Uçlar açıldığında tek değişiklik bu uyarının kalkması olacak.
-    </Message>
-
     <section class="panel-card pad">
       <div class="panel-title sm"><div><p>PROFİL</p><h2>Bilgileri düzelt</h2></div></div>
       <p class="manage-copy">
@@ -149,7 +168,14 @@ function completeQuest() {
           </div>
         </dl>
         <div class="card-foot">
-          <Button label="Tanışma akışını sıfırla" icon="pi pi-refresh" severity="secondary" outlined @click="resetOnboarding" />
+          <Button
+            label="Tanışma akışını sıfırla"
+            icon="pi pi-refresh"
+            severity="secondary"
+            outlined
+            :loading="busy === 'onboarding'"
+            @click="resetOnboarding"
+          />
         </div>
       </article>
 
@@ -169,6 +195,7 @@ function completeQuest() {
             icon="pi pi-trash"
             severity="danger"
             :disabled="!canDelete"
+            :loading="busy === 'delete'"
             @click="removeAccount"
           />
         </div>
@@ -194,7 +221,7 @@ function completeQuest() {
         </div>
         <div class="card-foot">
           <span class="muted-status">Toplam {{ num(detail.gamification.progress.totalXp) }} XP</span>
-          <Button label="Deftere yaz" icon="pi pi-plus" outlined @click="adjustXp" />
+          <Button label="Deftere yaz" icon="pi pi-plus" outlined :loading="busy === 'xp'" @click="adjustXp" />
         </div>
       </article>
 
@@ -216,7 +243,13 @@ function completeQuest() {
           />
         </div>
         <div class="card-foot">
-          <Button label="Tamamlandı işaretle" icon="pi pi-check-circle" outlined @click="completeQuest" />
+          <Button
+            label="Tamamlandı işaretle"
+            icon="pi pi-check-circle"
+            outlined
+            :loading="busy === 'quest'"
+            @click="completeQuest"
+          />
         </div>
       </article>
     </div>
