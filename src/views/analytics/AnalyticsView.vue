@@ -14,6 +14,8 @@ import PagesTab from './PagesTab.vue'
 import BlogTab from './BlogTab.vue'
 import SourcesTab from './SourcesTab.vue'
 import AudienceTab from './AudienceTab.vue'
+import InstagramTab from './InstagramTab.vue'
+import StoreTab from './StoreTab.vue'
 import SeoTab from './SeoTab.vue'
 import { RANGES, type Range } from '../../services/analytics'
 import { useAnalyticsStore } from './shared'
@@ -29,7 +31,7 @@ onMounted(load)
 
 <template>
   <div class="page-wrap">
-    <PageHeader eyebrow="GÖRÜNÜRLÜK · ANALİTİK" title="Analitik" description="afiet.co'nun kendi topladığı web analitiği: trafik, sayfalar, blog ve ziyaretçilerin nereden geldiği. Kişi-bazlı gözetleme yok.">
+    <PageHeader eyebrow="GÖRÜNÜRLÜK · ANALİTİK" title="Analitik" description="afiet'in tüm görünürlüğü tek yerde: web trafiği, blog, Instagram, mağaza indirmeleri ve arama performansı. Kişi-bazlı gözetleme yok.">
       <template v-if="onAnalyticsTab">
         <SelectButton v-model="rangeModel" :options="rangeOptions" option-label="label" option-value="value" :allow-empty="false" aria-label="Zaman aralığı" />
         <Button label="Yenile" icon="pi pi-refresh" outlined :loading="state.loading" @click="load" />
@@ -43,6 +45,8 @@ onMounted(load)
         <Tab value="blog">Blog</Tab>
         <Tab value="kaynaklar">Kaynaklar</Tab>
         <Tab value="kitle">Kitle</Tab>
+        <Tab value="instagram">Instagram</Tab>
+        <Tab value="magaza">Mağaza</Tab>
         <Tab value="seo">SEO &amp; GEO</Tab>
       </TabList>
       <TabPanels>
@@ -51,6 +55,8 @@ onMounted(load)
         <TabPanel value="blog"><BlogTab v-if="data" :data="data" /><AdminPlaceholder v-else icon="pi pi-file-edit" title="Analitik verisi getirilemedi" description="Veri şu an alınamadı. Bağlantını kontrol edip yeniden dene." retryable :loading="state.loading" @retry="load" /></TabPanel>
         <TabPanel value="kaynaklar"><SourcesTab v-if="data" :data="data" /><AdminPlaceholder v-else icon="pi pi-directions" title="Analitik verisi getirilemedi" description="Veri şu an alınamadı. Bağlantını kontrol edip yeniden dene." retryable :loading="state.loading" @retry="load" /></TabPanel>
         <TabPanel value="kitle"><AudienceTab v-if="data" :data="data" /><AdminPlaceholder v-else icon="pi pi-users" title="Analitik verisi getirilemedi" description="Veri şu an alınamadı. Bağlantını kontrol edip yeniden dene." retryable :loading="state.loading" @retry="load" /></TabPanel>
+        <TabPanel value="instagram"><InstagramTab /></TabPanel>
+        <TabPanel value="magaza"><StoreTab /></TabPanel>
         <TabPanel value="seo"><SeoTab /></TabPanel>
       </TabPanels>
     </Tabs>
