@@ -174,14 +174,19 @@ export type PushDeviceRow = {
   lastSeenAt: string
 }
 
+/**
+ * Saat alanları NULL olabilir ve bu bir eksiklik değil, bir anlam:
+ * "kullanıcı kendi saatini seçmedi, panelden yönetilen genel ayarı izliyor".
+ * Migration 000030 bu üç sütunu nullable yapıp mevcut satırları NULL'ladı.
+ */
 export type PushPreferences = {
   mealReminderEnabled: boolean
-  mealReminderTime: string
+  mealReminderTime: string | null
   weekClosureEnabled: boolean
   socialEnabled: boolean
   timezone: string
-  quietStart: string
-  quietEnd: string
+  quietStart: string | null
+  quietEnd: string | null
 }
 
 export type DeliveryRow = { kind: string; title: string; status: string; sentAt: string; error: string | null }
