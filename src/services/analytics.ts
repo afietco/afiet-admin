@@ -54,7 +54,82 @@ export type AnalyticsData = {
   countries: BreakdownRow[]
 }
 
+// ── Instagram (kaynak: içerik ölçümleri; afiet-web content_metrics aynası) ──
+
+export type InstagramPost = {
+  itemId: number
+  title: string
+  format: string
+  publishedAt: string | null
+  /** Son anlık görüntünün tarihi; tablodaki sayılar o günün ömür toplamıdır. */
+  measuredAt: string
+  views: number
+  reach: number
+  likes: number
+  comments: number
+  saved: number
+  shares: number
+}
+export type InstagramData = {
+  generatedAt: string
+  live: boolean
+  range: Range
+  totals: { views: number; reach: number; interactions: number; posts: number }
+  series: { date: string; views: number; reach: number }[]
+  posts: InstagramPost[]
+}
+
+// ── Mağaza (elle/CSV; afiet-web store_metrics aynası) ───────────────────────
+
+export type StorePlatform = 'ios' | 'android'
+export type StoreEntry = {
+  id: number
+  metricDate: string
+  platform: StorePlatform
+  downloads: number
+  pageViews: number | null
+  note: string
+  source: 'elle' | 'csv'
+}
+export type StoreEntryInput = Omit<StoreEntry, 'id'>
+export type StoreData = {
+  generatedAt: string
+  live: boolean
+  range: Range
+  totals: { ios: number; android: number; pageViews: number; conversionPct: number }
+  series: { date: string; ios: number; android: number }[]
+  entries: StoreEntry[]
+}
+
+// ── Arama performansı (GSC kopyası; afiet-web gsc_daily/gsc_rows aynası) ────
+
+export type GscRow = { key: string; clicks: number; impressions: number; ctr: number; position: number }
+export type GscData = {
+  generatedAt: string
+  live: boolean
+  range: Range
+  /** false = servis hesabı yapılandırılmamış; panel kurulum yönergesi gösterir. */
+  connected: boolean
+  lastSyncAt: string | null
+  totals: { clicks: number; impressions: number; ctrPct: number; position: number }
+  series: { date: string; clicks: number; impressions: number }[]
+  queries: GscRow[]
+  pages: GscRow[]
+}
+
 export const analyticsApi = {
   get: (range: Range) => webRequest<AnalyticsData>(`/api/admin/analytics?range=${range}`),
+  instagram: (range: Range) => webRequest<InstagramData>(`/api/admin/analytics/instagram?range=${range}`),
+  store: (range: Range) => webRequest<StoreData>(`/api/admin/analytics/store?range=${range}`),
+  storePut: (entry: StoreEntryInput, range: Range) =>
+    webRequest<StoreData>('/api/admin/analytics/store', { method: 'PUT', body: JSON.stringify({ ...entry, range }) }),
+  storeDelete: (id: number, range: Range) =>
+    webRequest<StoreData>(`/api/admin/analytics/store?id=${id}&range=${range}`, { method: 'DELETE' }),
+  storeImport: (entries: StoreEntryInput[], range: Range) =>
+    webRequest<{ yazilan: number; payload: StoreData }>('/api/admin/analytics/store-import', {
+      method: 'PUT',
+      body: JSON.stringify({ entries, range }),
+    }),
+  search: (range: Range) => webRequest<GscData>(`/api/admin/analytics/search?range=${range}`),
 }
 
