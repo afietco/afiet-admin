@@ -549,9 +549,15 @@ strong.num-cell { font-size: 13px; }
 .delta { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .delta.up { color: #10794f; background: #d8f0e3; } .delta.down { color: #a5442f; background: #fbe3dc; } .delta i { font-size: 9px; }
 .chart-card { margin-top: 15px; }
+.preview-badge { display: inline-block; margin-left: 8px; padding: 2.5px 9px; border-radius: 999px; background: #fdf3e2; color: #96612a; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; vertical-align: 1px; }
+/* GSC tabloları split-grid'de dar kalır: sayı kolonları sarılmaz ve dar tutulur,
+   sorgu/sayfa kolonu sarılır; yine sığmazsa kart içinde yatay kaydırma */
+.gsc-split .table-card { overflow-x: auto; }
+.gsc-split .p-datatable-thead th, .gsc-split .p-datatable-tbody td { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+.gsc-split .p-datatable-thead th:first-child, .gsc-split .p-datatable-tbody td:first-child { white-space: normal; }
 .chart-card .legend { display: inline-flex; align-items: center; gap: 6px; color: #93958d; font-size: 10px; font-weight: 800; }
-.chart-card .legend .lg { width: 10px; height: 10px; border-radius: 3px; }
-.chart-card .legend .lg.views { background: #059669; } .chart-card .legend .lg.visitors { background: #a7d8c2; }
+.chart-card .legend .lg { width: 14px; height: 3px; border-radius: 2px; }
+.chart-card .legend .lg.views { background: #059669; } .chart-card .legend .lg.visitors { background: #2f6fd6; }
 .bar-chart.tall { height: 188px; gap: 5px; }
 .bar-stack { position: relative; width: 100%; height: 100%; }
 .bar-stack .bar-fill { position: absolute; bottom: 0; left: 0; width: 100%; }
