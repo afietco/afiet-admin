@@ -24,6 +24,31 @@ tutar.
 - Beta başvuruları: web kayıtları, arama ve CSV dışa aktarma
 - İçerik: sosyal medya + blog takvimi (gün/hafta/ay, sürükle-bırak), tarihsiz
   fikirler için Plan kutusu, ölçümler
+- Zeka merkezi: ajanlar, bilgi tabanları ve tazeleme koşuları
+
+### Zeka merkezi notları
+
+Eski "Afi'ye sor" sayfası buraya taşındı; `/afi` yolu `/zeka`ya yönlenir.
+Bilgi tabanı ve Tazeleme sekmeleri olduğu gibi geldi, Sorular sekmesi
+`afi-bilgi-sofrasi` ajanının kendi sayfasına indi.
+
+- **Ajan üstverisi şu an MOCK** ve `services/intelligence.ts`'te elle tutuluyor.
+  Model, sürüm, uç ve araç bağları koddan doğrulandı; **effort ve sistem
+  promptu** yalnız Foundry'de duruyor ve panele taşıyacak bir uç yok. Teyit
+  edilemeyen alanlar `null` bırakıldı ve ekranda "okunmadı" görünür. Uydurulmuş
+  bir değer, boş bir alandan daha zararlı olurdu.
+- Promptu çekmek `GET {FOUNDRY_PROJECT_URL}/agents/{ad}?api-version=v1`
+  çağrısını **sunucudan** yapan bir yönetim ucu ister; anahtar tarayıcıya
+  inmemeli. `PromptPanel`'deki düğme o uç açılınca etkinleşir.
+- Simülasyonlar (`views/intelligence/sims/`) uygulamadaki kullanımın kopyasıdır:
+  aynı giriş alanları, aynı akış sırası, aynı çıktı yerleşimi. Yanıtlar
+  `services/intelligenceSim.ts`'teki sabit örneklerden gelir; tipler gerçek
+  sözleşmelerle (`internal/afi/*.go`) birebirdir, gerçek uca bağlanınca
+  bileşenler değişmez.
+- Uzman dizinlerinin (`diyetisyen-bilgi`, `psikolog-bilgi`) belge sayıları da
+  elle tutuluyor: kaynakları `afiet-backend/tools/uzman-bilgi/icerik/` altındaki
+  md dosyaları ve senkron `sync.py` ile elle koşuyor. Yalnız `bilgi-sofrasi`
+  sayıları canlı uçtan (`/v1/admin/kb/status`) okunur.
 
 ### İçerik takvimi notları
 
