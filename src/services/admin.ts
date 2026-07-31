@@ -35,6 +35,18 @@ export type Quest = {
    * falls back to `detail`.
    */
   narration: string
+  /**
+   * Görev detayındaki eylem düğmesinin metni ve gideceği ekran.
+   *
+   * Boş ise uygulama metrik ailesinin varsayılanını kullanır
+   * (services/questActions.ts). Hedef serbest rota değil bilinen bir jetondur;
+   * mobil tarafın tanımadığı bir jeton gönderilirse düğme çizilmez.
+   *
+   * ALANLAR HENÜZ BACKEND'DE YOK: quest_definitions'a Faz 2'de eklenecek, o
+   * yüzden isteğe bağlı. Panel bunları şimdilik göndermiyor.
+   */
+  actionLabel?: string
+  actionTarget?: string
   emoji: string
   metric: string
   scope: string

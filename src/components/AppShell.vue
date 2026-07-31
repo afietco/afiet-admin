@@ -35,7 +35,9 @@ const groups = [
     key: 'insanlar',
     label: 'İNSANLAR',
     items: [
-      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users' },
+      // Kullanıcı detayı da bu maddenin altında yaşar; alt rota adı verilmezse
+      // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
+      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users', also: ['user-detail'] },
       { to: '/beta-basvurulari', label: 'Beta başvuruları', icon: 'pi pi-send', name: 'beta' },
     ],
   },
@@ -51,8 +53,13 @@ const groups = [
 
 const STORAGE_KEY = 'afiet-admin:nav-groups'
 
+/** Madde bu rotayı temsil ediyor mu; `also` alt rotaları da maddeye bağlar. */
+function covers(item: { name: string; also?: string[] }, routeName: unknown) {
+  return item.name === routeName || (item.also ?? []).includes(String(routeName))
+}
+
 function groupOf(routeName: unknown) {
-  return groups.find((g) => g.items.some((i) => i.name === routeName))?.key
+  return groups.find((g) => g.items.some((i) => covers(i, routeName)))?.key
 }
 
 // Kapalı grupları saklıyoruz, açıkları değil: yeni bir grup eklendiğinde
@@ -124,7 +131,7 @@ function logout() {
               :key="item.name"
               :to="item.to"
               class="nav-item"
-              :class="{ active: route.name === item.name }"
+              :class="{ active: covers(item, route.name) }"
               @click="mobileOpen = false"
             >
               <i :class="item.icon" />

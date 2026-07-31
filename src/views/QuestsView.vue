@@ -15,7 +15,9 @@ import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
+import QuestPreview from './QuestPreview.vue'
 import { adminApi, type Quest, type QuestInput } from '../services/admin'
+import { effectiveAction, QUEST_ACTION_TARGETS, questTargetLabel } from '../services/questActions'
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -86,11 +88,39 @@ const inertCount = computed(() =>
   rows.value.filter((quest) => quest.active && INERT_METRICS.has(quest.metric)).length,
 )
 
+/**
+ * Aksiyon taslakları.
+ *
+ * `actionLabel` / `actionTarget` sütunları quest_definitions'a Faz 2'de
+ * eklenecek; o zamana kadar panel bunları sunucuya GÖNDERMEZ. Yazılan değer
+ * bu oturum boyunca burada durur ki tasarım listede ve önizlemede görülebilsin,
+ * ve satırda "taslak" rozetiyle işaretlenir. Sayfa yenilenince taslak kaybolur.
+ */
+const ACTION_PERSISTED = false
+const drafts = reactive(new Map<string, { actionLabel: string; actionTarget: string }>())
+
+const targetOptions = [
+  { value: '', label: 'Metrik ailesinin varsayılanı' },
+  ...QUEST_ACTION_TARGETS.map((target) => ({ value: target.value, label: target.label })),
+]
+
+/** Satırın gösterdiği aksiyon: taslak varsa o, yoksa sunucudaki, o da yoksa varsayılan. */
+function actionOf(quest: Quest) {
+  const draft = drafts.get(quest.id)
+  return effectiveAction({
+    metric: quest.metric,
+    actionLabel: draft?.actionLabel ?? quest.actionLabel,
+    actionTarget: draft?.actionTarget ?? quest.actionTarget,
+  })
+}
+
 const emptyForm = (): QuestInput => ({
   key: '',
   title: '',
   detail: '',
   narration: '',
+  actionLabel: '',
+  actionTarget: '',
   emoji: '🌱',
   metric: '',
   scope: 'lifetime',
@@ -134,11 +164,14 @@ function createQuest() {
 
 function editQuest(quest: Quest) {
   editing.value = quest
+  const draft = drafts.get(quest.id)
   Object.assign(form, {
     key: quest.key,
     title: quest.title,
     detail: quest.detail,
     narration: quest.narration,
+    actionLabel: draft?.actionLabel ?? quest.actionLabel ?? '',
+    actionTarget: draft?.actionTarget ?? quest.actionTarget ?? '',
     emoji: quest.emoji,
     metric: quest.metric,
     scope: quest.scope,
@@ -156,21 +189,38 @@ function valid() {
   if (form.detail.length > 200) return false
   if (form.narration.length > 600) return false
   if (!form.metric) return false
+  if (form.actionLabel && form.actionLabel.length > 32) return false
+  // Etiket ile hedef birlikte anlam taşır: yalnız biri yazılmış bir aksiyon
+  // uygulamada ya etiketsiz bir düğme ya da hiçbir yere gitmeyen bir düğme olur.
+  if (Boolean(form.actionLabel?.trim()) !== Boolean(form.actionTarget)) return false
   if (!editing.value && keyInvalid.value) return false
   return true
 }
+
+const actionHalfFilled = computed(() =>
+  Boolean(form.actionLabel?.trim()) !== Boolean(form.actionTarget))
 
 async function save() {
   submitted.value = true
   if (!valid()) return
   saving.value = true
+  // Aksiyon alanları sunucuya gitmiyor (sütunlar henüz yok); gövdeden ayrılır
+  // ki backend'e tanımadığı alan gönderilmesin.
+  const { actionLabel, actionTarget, ...payload } = form
   try {
-    if (editing.value) await adminApi.updateQuest(editing.value.id, form)
-    else await adminApi.addQuest(form)
+    const saved = editing.value
+      ? await adminApi.updateQuest(editing.value.id, payload)
+      : await adminApi.addQuest(payload)
+    if (!ACTION_PERSISTED && (actionLabel?.trim() || actionTarget)) {
+      drafts.set(saved.id, { actionLabel: actionLabel ?? '', actionTarget: actionTarget ?? '' })
+    }
     toast.add({
       severity: 'success',
       summary: editing.value ? 'Görev güncellendi' : 'Görev eklendi',
-      life: 2500,
+      detail: !ACTION_PERSISTED && (actionLabel?.trim() || actionTarget)
+        ? 'Aksiyon alanı kaydedilmedi: sütunlar backend’e Faz 2’de eklenecek.'
+        : '',
+      life: 3500,
     })
     dialogOpen.value = false
     await load()
@@ -238,7 +288,7 @@ onMounted(load)
     <PageHeader
       eyebrow="OYUNLAŞTIRMA"
       title="Görevler"
-      description="Görevlerim listesinin içeriğini yönet. İlerleme sunucuda kullanıcı davranışından türetilir — panel yalnız görev tanımlarını yazar, tecrübe defterine dokunmaz."
+      description="Görevlerim listesinin içeriğini yönet. İlerleme sunucuda kullanıcı davranışından türetilir; panel yalnız görev tanımlarını yazar, tecrübe defterine dokunmaz."
     >
       <Button label="Yeni görev" icon="pi pi-plus" @click="createQuest" />
     </PageHeader>
@@ -255,12 +305,14 @@ onMounted(load)
           :options="metricFilterOptions"
           option-label="label"
           option-value="value"
+          placeholder="Tüm metrikler"
         />
         <Select
           v-model="statusFilter"
           :options="statusOptions"
           option-label="label"
           option-value="value"
+          placeholder="Tüm durumlar"
         />
         <span class="result-count">{{ visibleRows.length }} / {{ rows.length }} görev · {{ activeCount }} aktif</span>
       </div>
@@ -302,10 +354,23 @@ onMounted(load)
             />
           </template>
         </Column>
+        <Column header="Aksiyon" style="min-width: 11.5rem">
+          <template #body="{ data }">
+            <div v-if="actionOf(data)" class="action-cell">
+              <strong>{{ actionOf(data)!.label }}</strong>
+              <small>
+                {{ questTargetLabel(actionOf(data)!.target) }}
+                <em v-if="drafts.has(data.id)" class="draft-flag">taslak</em>
+                <em v-else-if="!actionOf(data)!.custom" class="default-flag">varsayılan</em>
+              </small>
+            </div>
+            <span v-else class="muted-status">düğme yok</span>
+          </template>
+        </Column>
         <Column header="Hedef" style="width: 7rem">
           <template #body="{ data }"><strong>{{ data.target }}</strong></template>
         </Column>
-        <Column header="Tecrübe" style="width: 8rem">
+        <Column header="Tecrübe" style="width: 7.5rem">
           <template #body="{ data }"><span class="measure-pill">+{{ data.xpReward }} XP</span></template>
         </Column>
         <Column header="Durum" style="width: 7rem">
@@ -342,7 +407,15 @@ onMounted(load)
       </DataTable>
     </section>
 
-    <Dialog v-model:visible="dialogOpen" modal :header="title" :style="{ width: '44rem' }">
+    <Dialog
+      v-model:visible="dialogOpen"
+      modal
+      :header="title"
+      class="quest-dialog"
+      :style="{ width: '58rem' }"
+      :content-style="{ maxHeight: '68vh', overflowY: 'auto' }"
+    >
+      <div class="quest-dialog-body">
       <div class="form-grid">
         <div class="form-field span-2">
           <label for="quest-title">Başlık *</label>
@@ -378,6 +451,52 @@ onMounted(load)
           </small>
         </div>
 
+        <div class="section-rule span-4">
+          <span>EYLEM DÜĞMESİ</span>
+          <em v-if="!ACTION_PERSISTED">henüz kaydedilmiyor</em>
+        </div>
+
+        <div class="form-field span-2">
+          <label for="quest-action-label">Düğme metni</label>
+          <InputText
+            id="quest-action-label"
+            v-model="form.actionLabel"
+            fluid
+            :maxlength="32"
+            placeholder="Öğün ekle"
+            :invalid="submitted && actionHalfFilled"
+          />
+          <small>
+            İşin kendi fiili olsun: "Başla" değil "Öğün ekle". Boş bırakılırsa metrik
+            ailesinin varsayılanı kullanılır.
+          </small>
+        </div>
+
+        <div class="form-field span-2">
+          <label>Gideceği ekran</label>
+          <Select
+            v-model="form.actionTarget"
+            :options="targetOptions"
+            option-label="label"
+            option-value="value"
+            fluid
+            placeholder="Metrik ailesinin varsayılanı"
+            :invalid="submitted && actionHalfFilled"
+          />
+          <small v-if="submitted && actionHalfFilled" class="field-error">
+            Metin ve ekran birlikte doldurulmalı; yalnız biri yazılırsa düğme ya adsız ya da hedefsiz kalır.
+          </small>
+          <small v-else>
+            Serbest rota yazılmaz: hedefler uygulamanın tanıdığı ekranlardır, bir ekran taşındığında
+            bağ kopmaz.
+          </small>
+        </div>
+
+        <Message v-if="!ACTION_PERSISTED" severity="info" :closable="false" class="span-4">
+          Bu iki alan quest_definitions'a Faz 2'de eklenecek. Şimdilik kaydedilmez; yazdığın değer
+          bu oturum boyunca listede "taslak" olarak görünür.
+        </Message>
+
         <div class="form-field">
           <label for="quest-emoji">Emoji</label>
           <InputText id="quest-emoji" v-model="form.emoji" fluid placeholder="🌱" />
@@ -397,7 +516,7 @@ onMounted(load)
             placeholder="ornek-gorev-anahtari"
             :invalid="submitted && !editing && keyInvalid"
           />
-          <small v-if="editing">Anahtar değiştirilemez — kullanıcı ilerlemesi buna bağlı.</small>
+          <small v-if="editing">Anahtar değiştirilemez; kullanıcı ilerlemesi buna bağlı.</small>
           <small v-else-if="submitted && keyInvalid" class="field-error">
             3-40 karakter; küçük harf, rakam, tire, alt çizgi.
           </small>
@@ -416,7 +535,7 @@ onMounted(load)
             :invalid="submitted && !form.metric"
           />
           <small v-if="editing">
-            Metrik değiştirilemez — mevcut kullanıcı ilerlemesi bu sayaca göre yorumlanır.
+            Metrik değiştirilemez; mevcut kullanıcı ilerlemesi bu sayaca göre yorumlanır.
           </small>
         </div>
         <div class="form-field">
@@ -452,6 +571,12 @@ onMounted(load)
           </div>
           <ToggleSwitch v-model="form.active" />
         </label>
+      </div>
+
+      <aside class="quest-dialog-side">
+        <p class="preview-label">UYGULAMADA</p>
+        <QuestPreview :form="form" />
+      </aside>
       </div>
 
       <template #footer>
