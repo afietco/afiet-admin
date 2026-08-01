@@ -19,7 +19,7 @@ import type { Page, User } from './admin'
 export type UserProfile = {
   userId: string
   email: string
-  username: string | null
+  friendCode: string
   displayName: string | null
   emoji: string | null
   sex: string | null
@@ -39,13 +39,13 @@ export type UserProfile = {
  *
  * Verilmeyen alan "değişmez", BOŞ DİZE "temizle" demektir. Bu, uygulamanın
  * kendi profil ucundan bilerek farklı: orada bir alanı boşaltmanın yolu yok,
- * destek tarafında ise bir görünen adı ya da kullanıcı adını geri alabilmek
- * gerekiyor. Boy sayısal olduğu için temizlenemez, yalnız değiştirilebilir.
+ * destek tarafında ise bir görünen adı geri alabilmek gerekiyor. Boy sayısal
+ * olduğu için temizlenemez, yalnız değiştirilebilir. Arkadaş kodu sunucu
+ * üretimidir; panel yalnız gösterir, yazamaz.
  */
 export type UserProfilePatch = {
   displayName?: string
   emoji?: string
-  username?: string
   email?: string
   sex?: string
   birthDate?: string

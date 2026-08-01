@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import PageHeader from '../components/PageHeader.vue'
 import AdminPlaceholder from '../components/AdminPlaceholder.vue'
+import LineChart from '../components/LineChart.vue'
 import { type GrowthData } from '../services/growth'
 import { adminApi } from '../services/admin'
 import { betaApi, label, type BetaAdminPayload } from '../services/beta'
+import { SERIES_COLORS, duration } from './analytics/shared'
 
 // Gerçek veri /v1/admin/growth'tan gelir. Uç erişilemezse (oturumsuz/404/ağ)
 // mock ÜRETİLMEZ; veri null kalır ve sayfa placeholder gösterir.
@@ -39,8 +41,16 @@ const funnelRows = computed(() =>
   })),
 )
 const activationRate = computed(() => pct(d.value?.funnel[1]?.value ?? 0, registered.value))
+const groupCount = computed(() => d.value?.funnel.find((s) => s.key === 'group')?.value ?? 0)
 
-const maxTrend = computed(() => Math.max(...(d.value?.growth.weeklyTrend ?? []).map((p) => p.value), 1))
+const trendLabels = computed(() => (d.value?.growth.weeklyTrend ?? []).map((p) => p.label))
+const trendSeries = computed(() => [
+  { label: 'Yeni kullanıcı', color: SERIES_COLORS.views, values: (d.value?.growth.weeklyTrend ?? []).map((p) => p.value) },
+])
+
+// Oturum telemetrisi mobil 0.9 ile yayılıyor; hiç oturum yoksa şerit not düşer.
+const sess = computed(() => d.value?.habit.sessions)
+const sessionsLive = computed(() => (sess.value?.wau ?? 0) > 0)
 // "Nereden duydun?" yanıtlarının toplamı. Başvuru sayısına eşit değil:
 // alan isteğe bağlı, boş bırakanlar bu toplama girmez.
 const heardRows = computed(() => (beta.value?.summary.heard ?? []).filter((r) => r.key))
@@ -83,13 +93,7 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
         <div class="split-grid">
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>HAFTALIK KAYIT TRENDİ</p><h2>Yeni kullanıcı</h2></div></div>
-            <div class="bar-chart">
-              <div v-for="p in d.growth.weeklyTrend" :key="p.label" class="bar-col">
-                <span class="bar-value">{{ p.value }}</span>
-                <div class="bar-track"><div class="bar-fill" :style="{ height: `${Math.max(6, pct(p.value, maxTrend))}%` }" /></div>
-                <span class="bar-label">{{ p.label }}</span>
-              </div>
-            </div>
+            <LineChart :labels="trendLabels" :series="trendSeries" :height="180" />
           </article>
 
           <article class="panel-card pad">
@@ -130,9 +134,9 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
           <article class="panel-card pad center-card">
             <p class="big-label">AKTİVASYON</p>
             <div class="big-stat green">%{{ activationRate }}</div>
-            <p class="big-sub">kayıt → ilk öğün</p>
+            <p class="big-sub">kayıt → ilk ölçüm</p>
             <div class="big-divider" />
-            <p class="big-mini">{{ fmt(d.funnel[3]?.value ?? 0) }} kişi <span>gruba katıldı (Soframız)</span></p>
+            <p class="big-mini">{{ fmt(groupCount) }} kişi <span>gruba katıldı (Soframız)</span></p>
           </article>
         </div>
       </section>
@@ -143,23 +147,35 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
         <div class="triple-grid">
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>KOHORT</p><h2>Retention</h2></div></div>
+            <div class="ret-legend"><span><i class="k-open" /> uygulamayı açtı</span><span><i class="k-act" /> eylem yaptı</span></div>
             <div class="ret-list">
-              <div v-for="r in d.retention" :key="r.key" class="ret-row">
+              <div v-for="r in d.retention" :key="r.key" class="ret-row dual">
                 <span class="ret-label">{{ r.label }}</span>
-                <div class="ret-track"><div class="ret-fill" :class="retentionColor(r.rate)" :style="{ width: `${r.rate}%` }" /></div>
-                <span class="ret-val">%{{ r.rate }}</span>
+                <div class="ret-pair">
+                  <div class="ret-track"><div class="ret-fill open" :style="{ width: `${r.openRate}%` }" /></div>
+                  <div class="ret-track"><div class="ret-fill" :class="retentionColor(r.rate)" :style="{ width: `${r.rate}%` }" /></div>
+                </div>
+                <span class="ret-vals"><span class="open">%{{ r.openRate }}</span><span class="act">%{{ r.rate }}</span></span>
               </div>
             </div>
-            <p class="note-line subtle">Kohort: {{ d.retention.map((r) => `${r.label} ${fmt(r.cohort)}`).join(' · ') }} kişi. Kayıttan sonra geri dönenler (öğün·ölçüm·su).</p>
+            <p class="note-line subtle">Kohort: {{ d.retention.map((r) => `${r.label} ${fmt(r.cohort)}`).join(' · ') }} kişi. Açtı = session_start; eylem = öğün·ölçüm·su. Oturum telemetrisi 1 Ağu'da çıktı; eski kohortların "açtı" oranı yapısal olarak düşük.</p>
           </article>
 
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>AKTİVİTE</p><h2>Alışkanlık</h2></div></div>
             <div class="dua-row">
-              <div class="dua-cell"><strong>{{ fmt(d.habit.dau) }}</strong><small>DAU</small></div>
-              <div class="dua-cell"><strong>{{ fmt(d.habit.wau) }}</strong><small>WAU</small></div>
+              <div class="dua-cell"><strong>{{ fmt(d.habit.dau) }}</strong><small>DAU (öğün)</small></div>
+              <div class="dua-cell"><strong>{{ fmt(d.habit.wau) }}</strong><small>WAU (öğün)</small></div>
               <div class="dua-cell"><strong>{{ d.habit.avgRhythmDays }}</strong><small>ort. ritim günü</small></div>
             </div>
+            <div class="session-row">
+              <div class="session-cell"><strong>{{ fmt(sess?.dau ?? 0) }}</strong><small>OTURUM DAU</small></div>
+              <div class="session-cell"><strong>{{ fmt(sess?.wau ?? 0) }}</strong><small>OTURUM WAU</small></div>
+              <div class="session-cell"><strong>{{ duration(sess?.avgSessionSec ?? 0) }}</strong><small>ORT. OTURUM</small></div>
+              <div class="session-cell"><strong>{{ (sess?.sessionsPerActive ?? 0).toLocaleString('tr-TR') }}</strong><small>OTURUM / KİŞİ (7G)</small></div>
+              <div class="session-cell"><strong>%{{ sess?.fromNotificationPct ?? 0 }}</strong><small>BİLDİRİMDEN AÇILIŞ</small></div>
+            </div>
+            <p v-if="!sessionsLive" class="note-line subtle" style="margin-top: 8px"><i class="pi pi-info-circle" /> Oturum telemetrisi mobil 0.9 sürümüyle yayılıyor; kullanıcılar güncelledikçe dolar.</p>
             <p class="mini-cap">AKTİF GÜN DAĞILIMI (30g)</p>
             <ul class="src-list tight">
               <li v-for="b in d.habit.activeDayDistribution" :key="b.bucket">
@@ -197,6 +213,41 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
             </div>
           </div>
         </article>
+
+        <div class="triple-grid" style="margin-top: 15px">
+          <article class="panel-card pad">
+            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok görülen ekranlar</h2></div></div>
+            <ul v-if="d.sofra.topScreens.length" class="src-list tight">
+              <li v-for="s in d.sofra.topScreens" :key="s.key">
+                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
+                <div class="mini-track"><div class="mini-fill green" :style="{ width: `${pct(s.count, d.sofra.topScreens[0]?.count ?? 1)}%` }" /></div>
+              </li>
+            </ul>
+            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz screen_view verisi yok; mobil 0.9 yayıldıkça dolar.</p>
+          </article>
+
+          <article class="panel-card pad">
+            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok açılan alt sayfalar</h2></div></div>
+            <ul v-if="d.sofra.topSheets.length" class="src-list tight">
+              <li v-for="s in d.sofra.topSheets" :key="s.key">
+                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
+                <div class="mini-track"><div class="mini-fill blue" :style="{ width: `${pct(s.count, d.sofra.topSheets[0]?.count ?? 1)}%` }" /></div>
+              </li>
+            </ul>
+            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz sheet_view verisi yok.</p>
+          </article>
+
+          <article class="panel-card pad">
+            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En sık dokunuşlar</h2></div></div>
+            <ul v-if="d.sofra.topTaps.length" class="src-list tight">
+              <li v-for="s in d.sofra.topTaps" :key="s.key">
+                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}</span></div>
+                <div class="mini-track"><div class="mini-fill amber" :style="{ width: `${pct(s.count, d.sofra.topTaps[0]?.count ?? 1)}%` }" /></div>
+              </li>
+            </ul>
+            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz ui_tap verisi yok.</p>
+          </article>
+        </div>
       </section>
     </template>
   </div>

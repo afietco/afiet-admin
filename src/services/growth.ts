@@ -9,10 +9,21 @@
 
 export type TrendPoint = { label: string; value: number }
 export type FunnelStep = { key: string; label: string; value: number; hint: string }
-export type RetentionRow = { key: 'd1' | 'd7' | 'd30'; label: string; days: number; rate: number; cohort: number }
+/** rate: eylem yaptı (öğün/ölçüm/su) · openRate: uygulamayı açtı (session_start). */
+export type RetentionRow = { key: 'd1' | 'd7' | 'd30'; label: string; days: number; rate: number; openRate: number; cohort: number }
 export type DistRow = { bucket: string; users: number }
 export type MealTypeRow = { meal: string; label: string; count: number }
 export type EventStat = { key: string; label: string; value: number | null; unit?: string; live: boolean }
+/** Oturum telemetrisi alışkanlık metrikleri; telemetri yayılmadıysa hepsi 0. */
+export type SessionStats = {
+  dau: number
+  wau: number
+  avgSessionSec: number
+  sessionsPerActive: number
+  fromNotificationPct: number
+}
+/** Ekran/sheet/dokunuş kullanım satırı (son 7 gün); avgSec süresizlerde yok. */
+export type UsageRow = { key: string; count: number; avgSec?: number | null }
 
 export type GrowthData = {
   generatedAt: string
@@ -27,7 +38,7 @@ export type GrowthData = {
     /** false → UTM/ülke/dil kayıt anında toplanmıyor (henüz alan yok). */
     acquisitionTracked: boolean
   }
-  /** Kayıt → ilk öğün (aktivasyon) → 3+ aktif gün → gruba katıldı. */
+  /** Kayıt → ilk ölçüm (aktivasyon) → gruba katıldı → 3+ aktif gün (öğün bazlı). */
   funnel: FunnelStep[]
   retention: RetentionRow[]
   habit: {
@@ -36,10 +47,14 @@ export type GrowthData = {
     avgRhythmDays: number
     activeDayDistribution: DistRow[]
     mealTypes: MealTypeRow[]
+    sessions: SessionStats
   }
   sofra: {
     instrumented: number
     dictionaryTotal: number
     stats: EventStat[]
+    topScreens: UsageRow[]
+    topSheets: UsageRow[]
+    topTaps: UsageRow[]
   }
 }
