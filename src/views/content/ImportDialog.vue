@@ -5,7 +5,8 @@ import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
-import { buildImport, toMetrics, type ImportResult } from './metricsImport'
+import Checkbox from 'primevue/checkbox'
+import { buildImport, rowToItemInput, toMetrics, type ImportResult, type ImportRow } from './metricsImport'
 import { channelMeta, toIsoDate, useContentStore } from './shared'
 
 /**
@@ -19,12 +20,13 @@ import { channelMeta, toIsoDate, useContentStore } from './shared'
 const visible = defineModel<boolean>('visible', { required: true })
 
 const toast = useToast()
-const { payload, importMetrics } = useContentStore()
+const { payload, importMetrics, upsertItem } = useContentStore()
 
 const fileName = ref('')
 const result = ref<ImportResult | null>(null)
 const snapshot = ref<Date | null>(new Date())
 const saving = ref(false)
+const createMissing = ref(true)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 watch(visible, (open) => {
@@ -32,7 +34,13 @@ watch(visible, (open) => {
   fileName.value = ''
   result.value = null
   snapshot.value = new Date()
+  createMissing.value = true
 })
+
+/** Takvime eklenebilir eşleşmeyenler: bağlantısı olan satırlar. */
+const creatable = computed<ImportRow[]>(
+  () => (result.value?.unmatched ?? []).filter((r) => r.permalink),
+)
 
 async function pick(files: FileList | null) {
   const file = files?.[0]
@@ -48,18 +56,35 @@ async function pick(files: FileList | null) {
   if (fileInput.value) fileInput.value.value = ''
 }
 
-const canSave = computed(() => Boolean(result.value?.matched.length) && Boolean(snapshot.value))
+const saveLabel = computed(() => {
+  const m = result.value?.matched.length ?? 0
+  const c = createMissing.value ? creatable.value.length : 0
+  if (m + c === 0) return 'Ölçümleri yaz'
+  return c ? `${m + c} ölçümü yaz (${c} yeni etkinlik)` : `${m} ölçümü yaz`
+})
+
+const canSave = computed(() =>
+  Boolean(result.value?.matched.length || (createMissing.value && creatable.value.length)) &&
+  Boolean(snapshot.value))
 
 async function save() {
-  const rows = result.value?.matched ?? []
+  const matched = result.value?.matched ?? []
+  const toCreate = createMissing.value ? creatable.value : []
   const date = toIsoDate(snapshot.value)
-  if (!rows.length || !date) return
+  if ((!matched.length && !toCreate.length) || !date) return
   saving.value = true
   try {
-    const written = await importMetrics(toMetrics(rows, date))
+    // Önce eksik etkinlikler kurulur (sırayla: upsertItem yeni kaydı payload'ın
+    // en büyük id'sinden bulur), sonra tüm ölçümler tek istekte yazılır.
+    const created: ImportRow[] = []
+    for (const row of toCreate) {
+      const item = await upsertItem(rowToItemInput(row))
+      created.push({ ...row, item })
+    }
+    const written = await importMetrics(toMetrics([...matched, ...created], date))
     toast.add({
       severity: 'success',
-      summary: `${written} ölçüm yazıldı`,
+      summary: created.length ? `${written} ölçüm yazıldı, ${created.length} gönderi takvime eklendi` : `${written} ölçüm yazıldı`,
       detail: 'Aynı tarihe yeniden aktarırsan üzerine yazar.',
       life: 4000,
     })
@@ -123,8 +148,14 @@ async function save() {
             <p class="preview-label mt">EŞLEŞMEYEN SATIRLAR</p>
             <small class="accounts-hint">
               Bu gönderilerin bağlantısı takvimdeki hiçbir etkinliğin "Yayın URL'i" alanıyla tutmadı.
-              İlgili etkinliği açıp yayın URL'ini girersen sonraki aktarımda eşleşir.
             </small>
+            <label v-if="creatable.length" class="import-create">
+              <Checkbox v-model="createMissing" binary />
+              <span>
+                <strong>{{ creatable.length }} gönderiyi yayınlanmış etkinlik olarak takvime ekle</strong>
+                <small>Başlık, tarih ve yayın URL'i dosyadan gelir; ölçümleri de aynı aktarımda yazılır.</small>
+              </span>
+            </label>
             <ul class="account-list import-list">
               <li v-for="row in result.unmatched" :key="row.line" class="account-item is-muted">
                 <span class="account-glyph"><i class="pi pi-question" /></span>
@@ -143,7 +174,7 @@ async function save() {
     <template #footer>
       <Button label="Vazgeç" severity="secondary" text @click="visible = false" />
       <Button
-        :label="result?.matched.length ? `${result.matched.length} ölçümü yaz` : 'Ölçümleri yaz'"
+        :label="saveLabel"
         icon="pi pi-check"
         :disabled="!canSave"
         :loading="saving"
@@ -152,3 +183,15 @@ async function save() {
     </template>
   </Dialog>
 </template>
+
+<style scoped>
+.import-create {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 10px 0 4px; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+  cursor: pointer;
+}
+.import-create span { display: grid; gap: 2px; }
+.import-create strong { font-size: 12.5px; }
+.import-create small { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+</style>
