@@ -1,4 +1,7 @@
-import type { ContentItem, ContentMetricInput } from '../../services/content'
+import {
+  emptyBrief, emptyMusic,
+  type ContentFormat, type ContentItem, type ContentItemInput, type ContentMetricInput,
+} from '../../services/content'
 
 /**
  * Dışa aktarım dosyasından ölçüm okuma (Meta Business Suite > Insights >
@@ -74,6 +77,7 @@ const HEADERS: Record<string, string[]> = {
   postId: ['post id', 'media id', 'gönderi kimliği', 'gonderi kimligi', 'id'],
   publishedAt: ['publish time', 'date', 'yayınlanma', 'yayinlanma', 'tarih', 'publish date'],
   caption: ['description', 'caption', 'açıklama', 'aciklama', 'başlık', 'baslik'],
+  postType: ['post type', 'media type', 'media product type', 'gönderi türü', 'gonderi turu'],
   views: ['views', 'plays', 'görüntüleme', 'goruntuleme', 'izlenme', 'gösterim'],
   reach: ['reach', 'accounts reached', 'erişim', 'erisim'],
   likes: ['likes', 'beğeni', 'begeni'],
@@ -147,6 +151,10 @@ export type ImportRow = {
   permalink: string
   postId: string
   caption: string
+  /** Meta'nın "Publish time" kolonu, ham haliyle (MM/DD/YYYY HH:mm). */
+  publishedAt: string
+  /** Meta'nın "Post type" kolonu (IG reel / IG carousel …). */
+  postType: string
   views: number
   reach: number
   likes: number
@@ -212,6 +220,8 @@ export function buildImport(text: string, items: ContentItem[]): ImportResult {
       permalink,
       postId,
       caption: cell(row, 'caption'),
+      publishedAt: cell(row, 'publishedAt'),
+      postType: cell(row, 'postType'),
       views: parseCount(cell(row, 'views')),
       reach: parseCount(cell(row, 'reach')),
       likes: parseCount(cell(row, 'likes')),
@@ -233,6 +243,56 @@ export function buildImport(text: string, items: ContentItem[]): ImportResult {
 }
 
 /** Eşleşen satırları yazmaya hazır ölçümlere çevir (anlık görüntü tarihi verilir). */
+// ── Eşleşmeyenden etkinlik üretme ────────────────────────────────────────────
+/** Meta'nın "MM/DD/YYYY HH:mm" biçimini İstanbul saatli ISO'ya çevirir. */
+export function parsePublishTime(value: string): string | null {
+  const m = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/)
+  if (!m) return null
+  const [, mm, dd, yyyy, hh, min] = m
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+03:00`
+}
+
+/** "IG reel" / "IG carousel" → takvim formatı; tanınmayan tür post sayılır. */
+export function igFormat(postType: string): ContentFormat {
+  const t = postType.toLowerCase()
+  if (t.includes('reel')) return 'reel'
+  if (t.includes('carousel') || t.includes('album')) return 'carousel'
+  if (t.includes('story')) return 'story'
+  return 'post'
+}
+
+/**
+ * Eşleşmeyen bir satırdan yayınlanmış Instagram etkinliği kurar. Takvim
+ * Business Suite'te elle yürüyen gönderiler için hiç doğmamış olabiliyor
+ * (1 Ağu: takvimde tek bir Instagram etkinliği yoktu, 0/10 bundan);
+ * içe aktarım bu durumda takvimi kendisi tohumlayabilmeli.
+ */
+export function rowToItemInput(row: ImportRow): ContentItemInput {
+  const firstLine = row.caption.split('\n')[0]!.trim()
+  const title = firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine
+  return {
+    channel: 'instagram',
+    format: igFormat(row.postType),
+    title: title || 'Instagram gönderisi',
+    status: 'yayinda',
+    slug: null,
+    brief: emptyBrief(),
+    plannedAt: parsePublishTime(row.publishedAt),
+    allDay: !parsePublishTime(row.publishedAt),
+    publishedUrl: row.permalink || null,
+    caption: row.caption,
+    hashtags: [],
+    firstComment: '',
+    hook: '',
+    series: '',
+    seriesCode: '',
+    altText: '',
+    captionsReady: false,
+    music: emptyMusic(),
+    platformPostId: row.postId || null,
+  }
+}
+
 export function toMetrics(rows: ImportRow[], metricDate: string): ContentMetricInput[] {
   return rows
     .filter((r) => r.item)
