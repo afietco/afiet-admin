@@ -20,7 +20,15 @@ const router = createRouter({
         { path: 'seo', redirect: { name: 'analytics' } },
         { path: 'icerik', name: 'content', component: () => import('./views/content/ContentView.vue') },
         { path: 'bildirimler', name: 'push', component: () => import('./views/push/PushView.vue') },
-        { path: 'afi', name: 'afi', component: () => import('./views/afi/AfiView.vue') },
+        { path: 'zeka', name: 'intelligence', component: () => import('./views/intelligence/IntelligenceView.vue') },
+        {
+          path: 'zeka/ajan/:agentId',
+          name: 'agent-detail',
+          component: () => import('./views/intelligence/AgentDetailView.vue'),
+        },
+        // Eski "Afi'ye sor" sayfası zeka merkezine taşındı. Yer imi ve panel
+        // içindeki eski bağlantılar kırılmasın diye yol korunuyor.
+        { path: 'afi', redirect: { name: 'intelligence' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
