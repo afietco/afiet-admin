@@ -166,7 +166,10 @@ onMounted(load)
 .zeka-stat strong.warn { color: #b4541f; }
 .zeka-stat strong.idle { color: var(--muted); }
 
-.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 15px; }
+/* align-items: start — kartlar kendi içerik yüksekliğinde kalır. Varsayılan
+   stretch, satırdaki en uzun karta göre kısa kartların ortasına hayalet
+   boşluk bırakıyordu (alt bilgi margin-top:auto ile dibe yapışınca). */
+.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 15px; align-items: start; }
 
 .agent-card {
   display: flex; flex-direction: column; gap: 13px;
