@@ -121,10 +121,23 @@ export function parseCount(value: string | undefined): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Gönderi bağlantısını karşılaştırılabilir hale getir (sorgu/sondaki '/' atılır). */
+/**
+ * Gönderi bağlantısını karşılaştırılabilir hale getirir.
+ *
+ * Instagram bağlantısı kısa koda indirgenir: aynı gönderi www'lu/www'suz,
+ * şemalı/şemasız, kullanıcı adlı (instagram.com/afiet.co/reel/KOD) ya da
+ * sorgulu (?igsh=…) biçimde yapıştırılabiliyor; Meta dışa aktarımı ise hep
+ * https://www.instagram.com/reel/KOD/ yazar. Tam dize karşılaştırması bu
+ * varyantların hepsinde sessizce 0 eşleşme üretir (1 Ağu aktarımı: 0/10).
+ * Instagram dışı bağlantılarda şema, www, sorgu ve sondaki '/' atılır.
+ */
 export function normalizeLink(value: string | null | undefined): string {
   if (!value) return ''
-  return value.trim().split('?')[0]!.replace(/\/+$/, '').toLowerCase()
+  const raw = value.trim().split('?')[0]!.replace(/\/+$/, '').toLowerCase()
+  if (!raw) return ''
+  const shortcode = raw.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([a-z0-9_-]+)/)
+  if (shortcode) return `ig:${shortcode[1]}`
+  return raw.replace(/^https?:\/\//, '').replace(/^www\./, '')
 }
 
 // ── Eşleştirme ───────────────────────────────────────────────────────────────
