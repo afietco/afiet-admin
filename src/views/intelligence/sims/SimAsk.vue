@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import PhoneFrame from './PhoneFrame.vue'
 import TraceBox from './TraceBox.vue'
 import { simAskStream, type AskSource, type SimTrace } from '../../../services/intelligenceSim'
+
+const props = defineProps<{ agentName: string; version: string }>()
 
 /**
  * Landing'deki "Afi'ye sor" kartının kopyası (afiet-web AskAfiPanel). Metinler
  * oradaki content.ts ile aynı tutuldu ki panelde görülen şey ziyaretçinin
  * gördüğüyle aynı olsun.
  *
- * Cevap DÜZ METİN basılır: v-html yok, istemci tarafı markdown yok. Ziyaretçinin
- * yönlendirebildiği bir model çıktısını render etmek gereksiz bir XSS yüzeyi.
+ * Cevap DÜZ METİN basılır: v-html yok, istemci tarafı markdown yok. Model
+ * çıktısını render etmek gereksiz bir XSS yüzeyi.
  */
 
 const copy = {
@@ -27,12 +29,12 @@ const copy = {
 
 type Turn = { role: 'sen' | 'afi'; text: string; sources?: AskSource[] }
 
-const turns = ref<Turn[]>([])
+const turns: Ref<Turn[]> = ref([])
 const draft = ref('')
 const busy = ref(false)
+const error = ref('')
 const trace = ref<SimTrace | null>(null)
-// Akış kesilebilmeli: gerçek uçta ziyaretçi "Dur"a basınca SSE kapanıyor.
-const aborted = ref(false)
+let controller: AbortController | null = null
 
 const canSend = computed(() => draft.value.trim().length > 0 && !busy.value)
 
@@ -42,37 +44,51 @@ async function ask(question: string) {
   turns.value.push({ role: 'sen', text: q })
   draft.value = ''
   busy.value = true
-  aborted.value = false
+  error.value = ''
 
-  const answer: Turn = { role: 'afi', text: '' }
-  turns.value.push(answer)
+  // Cevabı DİZİ ÜZERİNDEN güncelliyoruz. Ham nesneye tutunup onu mutasyona
+  // uğratmak Vue'nun reaktif proxy'sini atlar: metin birikir ama ekran akış
+  // boyunca yenilenmez, cevap ancak akış bitince bir anda belirirdi.
+  const at = turns.value.push({ role: 'afi', text: '' }) - 1
+
+  controller = new AbortController()
   try {
-    const out = await simAskStream(q, (chunk) => {
-      if (aborted.value) return false
-      answer.text += chunk
-      return true
-    })
-    if (!aborted.value) answer.sources = out.sources
+    const out = await simAskStream(
+      q,
+      props.agentName,
+      props.version,
+      {
+        onDelta: (text) => { turns.value[at].text += text },
+        onSources: (sources) => { turns.value[at].sources = sources },
+      },
+      controller.signal,
+    )
     trace.value = out.trace
+  } catch (err) {
+    if ((err as Error)?.name !== 'AbortError') {
+      error.value = err instanceof Error ? err.message : 'Akış tamamlanamadı.'
+    }
   } finally {
     busy.value = false
+    controller = null
   }
 }
 
 function stop() {
-  aborted.value = true
+  controller?.abort()
 }
 
 function reset() {
-  aborted.value = true
+  controller?.abort()
   turns.value = []
   trace.value = null
+  error.value = ''
 }
 
 /** Cevabı paragraflara böl; boş satır ayırıcı, markdown yok. */
 const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
 
-onBeforeUnmount(() => { aborted.value = true })
+onBeforeUnmount(() => controller?.abort())
 </script>
 
 <template>
@@ -83,9 +99,9 @@ onBeforeUnmount(() => { aborted.value = true })
         sohbet geçmişi istemciden değil <strong>sunucunun kendi kaydından</strong> gelir.
       </p>
       <ul class="control-facts">
-        <li>Turnstile ilk gerçek etkileşimde ısıtılır, sayfa açılışında değil.</li>
+        <li>Simülasyonda Turnstile ve bilet yok: admin rolü zaten kapı.</li>
+        <li>Bu sohbet veritabanına yazılmaz, Sorular sekmesinde görünmez.</li>
         <li>Alıntılar yalnız site içi yollar; host içeren uydurma bağlantı düşürülür.</li>
-        <li>Kota dolunca giriş etkisizleşir ve odak CTA'ya taşınır.</li>
       </ul>
       <button type="button" class="reset-btn" @click="reset">Sohbeti sıfırla</button>
     </div>
@@ -104,17 +120,17 @@ onBeforeUnmount(() => { aborted.value = true })
                 <p v-for="(p, pi) in paragraphs(turn.text)" :key="pi">{{ p }}</p>
                 <span v-if="!turn.text && busy" class="thinking">{{ copy.answering }}</span>
                 <div v-if="turn.sources?.length" class="sources">
-                  <span
-                    v-for="s in turn.sources"
-                    :key="s.url"
-                    class="source-chip"
-                  ><i class="pi pi-link" />{{ s.title }}</span>
+                  <span v-for="s in turn.sources" :key="s.url" class="source-chip">
+                    <i class="pi pi-link" />{{ s.title }}
+                  </span>
                 </div>
               </template>
               <p v-else>{{ turn.text }}</p>
             </div>
           </li>
         </ol>
+
+        <p v-if="error" class="ask-error"><i class="pi pi-exclamation-triangle" />{{ error }}</p>
 
         <div v-if="!turns.length" class="ask-chips">
           <span class="chips-label">{{ copy.chipsLabel }}</span>
@@ -161,6 +177,13 @@ onBeforeUnmount(() => { aborted.value = true })
 .ask-bubble p { margin: 0; }
 .ask-bubble p + p { margin-top: 10px; }
 .thinking { color: var(--muted); font-size: 12.5px; font-style: italic; }
+
+.ask-error {
+  display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0;
+  padding: 11px 13px; border-radius: 12px; background: #fdf5f3; color: #7a4437;
+  font-size: 12.5px; line-height: 1.55;
+}
+.ask-error i { margin-top: 2px; color: var(--coral); font-size: 12px; }
 
 .sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .source-chip {

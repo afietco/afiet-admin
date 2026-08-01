@@ -7,14 +7,19 @@ import TraceBox from './TraceBox.vue'
 import { label, measureLabel } from '../../../services/foodLabels'
 import { simPhotoTurn, type PhotoFood, type PhotoReply, type SimTrace } from '../../../services/intelligenceSim'
 
+const props = defineProps<{ agentName: string; version: string }>()
+
 /**
  * Fotoğraftan tanıma simülasyonu: mobil AfiPhotoSheet'in kopyası. Sohbet
- * serbest değil süreç odaklıdır: ajan ya net bir soru sorar ya sonuç döner,
- * o yüzden simülasyon da ilk turda sonuca atlamaz.
+ * serbest değil süreç odaklıdır: ajan ya net bir soru sorar ya sonuç döner.
  *
- * Seçilen fotoğraf HİÇBİR YERE gitmez: yalnız tarayıcıda önizlenir. Gerçek
- * akışta bile fotoğraf saklanmaz, Files API'ye yüklenip tur dönünce silinir.
+ * Fotoğraf mobildekiyle AYNI ölçüde küçültülüp sıkıştırılıyor (uzun kenar
+ * 1280 px, JPEG 0.65). Ham bir kare göndermek hem maliyeti hem gecikmeyi
+ * ürüne benzemez hâle getirirdi.
  */
+
+const MAX_EDGE = 1280
+const COMPRESSION = 0.65
 
 type Bubble =
   | { role: 'user'; text: string; image?: string }
@@ -24,61 +29,101 @@ const bubbles = ref<Bubble[]>([])
 const draft = ref('')
 const hint = ref('')
 const busy = ref(false)
+const error = ref('')
 const trace = ref<SimTrace | null>(null)
-const imageUrl = ref('')
-const hasImage = ref(false)
+const conversationId = ref<string | null>(null)
+const previewUrl = ref('')
+const pendingBase64 = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const chatEl = ref<HTMLElement | null>(null)
 
-// Sonuç kartı uzun; yeni tur gelince aşağı inmezse cevap görünmeyen alanda
-// kalır. Uygulamadaki sheet de yeni mesaja kayıyor.
 async function scrollToLatest() {
   await nextTick()
   if (chatEl.value) chatEl.value.scrollTop = chatEl.value.scrollHeight
 }
 
-function releaseImage() {
-  if (imageUrl.value) URL.revokeObjectURL(imageUrl.value)
-  imageUrl.value = ''
+function releasePreview() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = ''
 }
 
-function onFile(event: Event) {
+/** Uzun kenarı sınırlar, en boy oranını korur; base64 gövdeyi döner. */
+function shrink(file: File): Promise<{ base64: string; url: string }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        reject(new Error('Görsel işlenemedi.'))
+        return
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/jpeg', COMPRESSION)
+      URL.revokeObjectURL(url)
+      // Sunucu saf base64 bekliyor, data: öneki değil.
+      resolve({ base64: dataUrl.slice(dataUrl.indexOf(',') + 1), url: dataUrl })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Görsel okunamadı.'))
+    }
+    img.src = url
+  })
+}
+
+async function onFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
-  releaseImage()
-  imageUrl.value = URL.createObjectURL(file)
-  hasImage.value = true
-}
-
-/** Fotoğraf seçemeyen/istemeyen için: dosyasız da akış denenebilmeli. */
-function useSampleImage() {
-  releaseImage()
-  hasImage.value = true
+  error.value = ''
+  try {
+    const out = await shrink(file)
+    releasePreview()
+    pendingBase64.value = out.base64
+    previewUrl.value = out.url
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Görsel hazırlanamadı.'
+  }
 }
 
 async function send(text: string) {
   if (busy.value) return
-  const turnIndex = bubbles.value.filter((b) => b.role === 'user').length
-  const attaching = turnIndex === 0 && hasImage.value
+  const attaching = !conversationId.value && pendingBase64.value !== ''
   if (!text.trim() && !attaching) return
 
   bubbles.value.push({
     role: 'user',
     text: text.trim() || (attaching ? 'Bu ne kadar?' : ''),
-    image: attaching ? imageUrl.value || 'sample' : undefined,
+    image: attaching ? previewUrl.value : undefined,
   })
   draft.value = ''
   busy.value = true
+  error.value = ''
   void scrollToLatest()
+
   try {
-    const out = await simPhotoTurn({
-      turnIndex,
-      text: text.trim(),
-      hasImage: hasImage.value,
-      hint: hint.value,
-    })
+    const out = await simPhotoTurn(
+      {
+        conversationId: conversationId.value,
+        text: text.trim(),
+        // Fotoğraf yalnız ilk turda gider; sonraki turlarda bağlam Foundry
+        // conversation'ında yaşıyor.
+        imageBase64: attaching ? pendingBase64.value : '',
+        hint: hint.value,
+      },
+      props.agentName,
+      props.version,
+    )
+    conversationId.value = out.conversationId
     bubbles.value.push({ role: 'afi', reply: out.reply })
     trace.value = out.trace
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Tur tamamlanamadı.'
   } finally {
     busy.value = false
     void scrollToLatest()
@@ -89,15 +134,18 @@ function reset() {
   bubbles.value = []
   trace.value = null
   draft.value = ''
-  hasImage.value = false
-  releaseImage()
+  error.value = ''
+  conversationId.value = null
+  pendingBase64.value = ''
+  releasePreview()
   if (fileInput.value) fileInput.value.value = ''
 }
 
 const macroLine = (f: PhotoFood) =>
-  `${f.macros.kcal} kcal · P ${f.macros.protein} · K ${f.macros.carb} · Y ${f.macros.fat}`
+  `${Math.round(f.macros.kcal)} kcal · P ${Math.round(f.macros.protein)}` +
+  ` · K ${Math.round(f.macros.carb)} · Y ${Math.round(f.macros.fat)}`
 
-onBeforeUnmount(releaseImage)
+onBeforeUnmount(releasePreview)
 </script>
 
 <template>
@@ -105,16 +153,18 @@ onBeforeUnmount(releaseImage)
     <div class="sim-controls">
       <label class="field">
         <span>Fotoğraf</span>
-        <input ref="fileInput" type="file" accept="image/*" @change="onFile" />
+        <input ref="fileInput" type="file" accept="image/*" :disabled="busy" @change="onFile" />
         <small class="field-note">
-          Seçtiğin görsel hiçbir yere gönderilmez, yalnız bu sekmede önizlenir.
+          Mobildeki gibi küçültülüp sıkıştırılıyor (uzun kenar {{ MAX_EDGE }} px, JPEG
+          {{ COMPRESSION }}). Sunucuda saklanmaz: Files API'ye yüklenir, tur dönünce silinir.
         </small>
       </label>
-      <Button label="Örnek kare kullan" icon="pi pi-image" outlined size="small" @click="useSampleImage" />
+
+      <img v-if="previewUrl && !conversationId" class="preview" :src="previewUrl" alt="Seçilen fotoğraf" />
 
       <label class="field">
         <span>Hint <small>(Besin Ekle'de yazılmış ad, yalnız ilk tur)</small></span>
-        <InputText v-model="hint" placeholder="Örn. ızgara tavuk" />
+        <InputText v-model="hint" placeholder="Örn. ızgara tavuk" :disabled="!!conversationId" />
       </label>
 
       <p class="control-note">
@@ -134,15 +184,14 @@ onBeforeUnmount(releaseImage)
 
           <template v-for="(b, i) in bubbles" :key="i">
             <div v-if="b.role === 'user'" class="msg user">
-              <img v-if="b.image && b.image !== 'sample'" :src="b.image" alt="Gönderilen fotoğraf" />
-              <div v-else-if="b.image" class="sample-photo"><i class="pi pi-image" /> örnek kare</div>
+              <img v-if="b.image" :src="b.image" alt="Gönderilen fotoğraf" />
               <p v-if="b.text">{{ b.text }}</p>
             </div>
 
             <div v-else class="msg afi">
               <p>{{ b.reply.text }}</p>
 
-              <div v-if="b.reply.quickReplies.length" class="quick">
+              <div v-if="b.reply.quickReplies?.length" class="quick">
                 <button
                   v-for="q in b.reply.quickReplies"
                   :key="q"
@@ -169,22 +218,25 @@ onBeforeUnmount(releaseImage)
                 <button type="button" class="save-btn" disabled>Menüne Kaydet</button>
               </div>
 
-              <div v-if="b.reply.extraFoods.length" class="extras">
+              <div v-if="b.reply.extraFoods?.length" class="extras">
                 <span class="extras-cap">Karede bunlar da var</span>
                 <div v-for="ex in b.reply.extraFoods" :key="ex.name" class="extra-card">
                   <div>
                     <strong>{{ ex.name }}</strong>
                     <small>{{ macroLine(ex) }}</small>
                   </div>
-                  <button type="button" disabled>
-                    {{ ex.inPool ? 'Ekle' : 'Oluştur' }}
-                  </button>
+                  <button type="button" disabled>{{ ex.inPool ? 'Ekle' : 'Oluştur' }}</button>
                 </div>
               </div>
             </div>
           </template>
 
           <div v-if="busy" class="msg afi typing"><span /><span /><span /></div>
+
+          <div v-if="error" class="sim-error">
+            <i class="pi pi-exclamation-triangle" />
+            <p>{{ error }}</p>
+          </div>
         </div>
 
         <form class="composer" @submit.prevent="send(draft)">
@@ -208,6 +260,7 @@ onBeforeUnmount(releaseImage)
 .field input[type='file'] { font-size: 12px; }
 .field-note { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .control-note { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; }
+.preview { display: block; width: 100%; max-width: 220px; border-radius: 12px; }
 
 .sim-stage { display: grid; gap: 13px; }
 
@@ -220,11 +273,6 @@ onBeforeUnmount(releaseImage)
 .msg p { margin: 0; }
 .msg.user { justify-self: end; background: #dff0e7; color: #1f5843; border-bottom-right-radius: 5px; }
 .msg.user img { display: block; width: 100%; max-width: 190px; margin-bottom: 7px; border-radius: 10px; }
-.sample-photo {
-  display: flex; gap: 7px; align-items: center; justify-content: center;
-  width: 150px; height: 92px; margin-bottom: 7px;
-  border: 1px dashed #9dc4af; border-radius: 10px; color: #3f7c62; font-size: 11px;
-}
 .msg.afi { justify-self: start; border: 1px solid var(--line); background: var(--canvas); border-bottom-left-radius: 5px; }
 
 .typing { display: flex; gap: 4px; padding: 14px 15px; }
@@ -233,6 +281,10 @@ onBeforeUnmount(releaseImage)
 .typing span:nth-child(3) { animation-delay: .36s; }
 @keyframes blink { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .typing span { animation: none; } }
+
+.sim-error { display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: #fdf5f3; }
+.sim-error i { margin-top: 2px; color: var(--coral); font-size: 12px; }
+.sim-error p { margin: 0; color: #7a4437; font-size: 12px; line-height: 1.55; }
 
 .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .quick button {

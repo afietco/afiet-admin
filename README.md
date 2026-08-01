@@ -32,23 +32,34 @@ Eski "Afi'ye sor" sayfası buraya taşındı; `/afi` yolu `/zeka`ya yönlenir.
 Bilgi tabanı ve Tazeleme sekmeleri olduğu gibi geldi, Sorular sekmesi
 `afi-bilgi-sofrasi` ajanının kendi sayfasına indi.
 
-- **Ajan üstverisi şu an MOCK** ve `services/intelligence.ts`'te elle tutuluyor.
-  Model, sürüm, uç ve araç bağları koddan doğrulandı; **effort ve sistem
-  promptu** yalnız Foundry'de duruyor ve panele taşıyacak bir uç yok. Teyit
-  edilemeyen alanlar `null` bırakıldı ve ekranda "okunmadı" görünür. Uydurulmuş
-  bir değer, boş bir alandan daha zararlı olurdu.
-- Promptu çekmek `GET {FOUNDRY_PROJECT_URL}/agents/{ad}?api-version=v1`
-  çağrısını **sunucudan** yapan bir yönetim ucu ister; anahtar tarayıcıya
-  inmemeli. `PromptPanel`'deki düğme o uç açılınca etkinleşir.
-- Simülasyonlar (`views/intelligence/sims/`) uygulamadaki kullanımın kopyasıdır:
-  aynı giriş alanları, aynı akış sırası, aynı çıktı yerleşimi. Yanıtlar
-  `services/intelligenceSim.ts`'teki sabit örneklerden gelir; tipler gerçek
-  sözleşmelerle (`internal/afi/*.go`) birebirdir, gerçek uca bağlanınca
-  bileşenler değişmez.
-- Uzman dizinlerinin (`diyetisyen-bilgi`, `psikolog-bilgi`) belge sayıları da
-  elle tutuluyor: kaynakları `afiet-backend/tools/uzman-bilgi/icerik/` altındaki
-  md dosyaları ve senkron `sync.py` ile elle koşuyor. Yalnız `bilgi-sofrasi`
-  sayıları canlı uçtan (`/v1/admin/kb/status`) okunur.
+**İki kaynak, bilinçli ayrım.** `services/intelligence.ts` yalnız ARAYÜZ
+KOPYASI tutar: etiket, ne işe yaradığı, uygulamadaki yüzü, kota cümlesi,
+tuzaklar. Ad, sürüm, model, effort, araç bağları ve sistem promptu Azure AI
+Foundry'de yaşar ve `/v1/admin/zeka/agents` ucundan canlı okunur. Canlı alanlar
+panele elle YAZILMAZ: bir ajanın sürümü portalda değiştiğinde panelin eski
+değeri güvenle göstermesi, hiç göstermemesinden daha kötü.
+
+- Sunucu okuyamazsa alan boş kalır ve ekranda "okunmadı" görünür. Uydurulmuş
+  bir effort değeri, boş bir alandan daha zararlı olur.
+- Ajan tanımını Foundry'den **sunucu** çeker
+  (`GET {FOUNDRY_PROJECT_URL}/agents/{ad}?api-version=v1`); anahtar tarayıcıya
+  inmez. Yanıt şeması sürüme göre kayabildiği için çözümleme hoşgörülüdür ve
+  ham gövde de saklanır (Sistem promptu sekmesinde "Ham gövde").
+- Simülasyonlar (`views/intelligence/sims/`) GERÇEK ajanı çağırır ve sunucuda
+  ürünün kendi kod yolundan geçer (aynı Suggester / VisionAssistant / Asker).
+  Tek fark kullanıcı kotasına yazmamaları; yönetici başına günde 200 tur sınırı
+  var.
+- "Afi'ye sor" simülasyonu AKAR ve ucu bilinçli olarak `/v1` dışındadır
+  (`POST /stream/admin/zeka/sim/ask`): `/v1`'deki `middleware.Timeout` akan
+  gövdenin üstüne 504 yazıp cevabı cümlenin ortasında keserdi.
+- Akan cevabı DİZİ ÜZERİNDEN güncelliyoruz. Ham nesneye tutunup mutasyona
+  uğratmak Vue'nun reaktif proxy'sini atlar: metin birikir ama ekran akış
+  boyunca yenilenmez, cevap ancak akış bitince bir anda belirir.
+- Uzman dizinlerinin (`diyetisyen-bilgi`, `psikolog-bilgi`) belge sayıları elle
+  tutuluyor: kaynakları `afiet-backend/tools/uzman-bilgi/icerik/` altındaki md
+  dosyaları ve senkron `sync.py` ile elle koşuyor. Yalnız `bilgi-sofrasi`
+  sayıları canlı uçtan (`/v1/admin/kb/status`) okunur. Arama servisinin kota ve
+  depo rakamları da elle: Azure yönetim API'si ayrı kimlik ister.
 
 ### İçerik takvimi notları
 

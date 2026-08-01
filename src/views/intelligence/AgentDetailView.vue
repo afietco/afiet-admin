@@ -13,16 +13,47 @@ import PromptPanel from './panels/PromptPanel.vue'
 import KnowledgePanel from './panels/KnowledgePanel.vue'
 import SimulationPanel from './panels/SimulationPanel.vue'
 import SorularTab from './SorularTab.vue'
-import { agentById, wiringMeta } from '../../services/intelligence'
+import { copyById, wiringMeta, zekaApi, type AgentLive, type AgentView } from '../../services/intelligence'
 
 const route = useRoute()
 
-const agent = computed(() => agentById(String(route.params.agentId)))
+const copy = computed(() => copyById(String(route.params.agentId)))
+const live = ref<AgentLive | null>(null)
+const loading = ref(true)
+const liveError = ref('')
 const activeTab = ref('genel')
+
+const agent = computed<AgentView | null>(() =>
+  copy.value ? { ...copy.value, live: live.value } : null)
+
+async function load(id: string) {
+  live.value = null
+  liveError.value = ''
+  if (!copyById(id)) {
+    loading.value = false
+    return
+  }
+  loading.value = true
+  try {
+    live.value = await zekaApi.agent(id)
+  } catch (err) {
+    // Canlı veri gelmese de sayfa durmalı; kopya panelde yaşıyor.
+    liveError.value = err instanceof Error ? err.message : 'Ajan tanımı alınamadı.'
+  } finally {
+    loading.value = false
+  }
+}
 
 // Ajan değişince sekme başa dönmeli: "Sorular" yalnız bir ajanda var, orada
 // açık bırakılıp başka ajana geçilirse boş bir panelde kalınırdı.
-watch(() => route.params.agentId, () => { activeTab.value = 'genel' })
+watch(
+  () => route.params.agentId,
+  (id) => {
+    activeTab.value = 'genel'
+    void load(String(id))
+  },
+  { immediate: true },
+)
 
 const severity = computed(() => {
   if (!agent.value) return 'info'
@@ -52,7 +83,7 @@ const severity = computed(() => {
             <h1>{{ agent.label }}</h1>
             <Tag :value="wiringMeta[agent.wiring].label" :severity="severity" />
           </div>
-          <code class="hero-name">{{ agent.name }}</code>
+          <code class="hero-name">{{ agent.live?.name || agent.id }}</code>
           <p class="hero-purpose">{{ agent.purpose }}</p>
         </div>
       </header>
@@ -60,6 +91,20 @@ const severity = computed(() => {
       <p class="hero-note" :class="agent.wiring">
         <i :class="agent.wiring === 'live' ? 'pi pi-check-circle' : 'pi pi-info-circle'" />
         {{ agent.wiringNote }}
+      </p>
+
+      <p v-if="liveError" class="hero-note error">
+        <i class="pi pi-exclamation-triangle" />
+        {{ liveError }} Aşağıdaki canlı alanlar boş kalacak.
+      </p>
+      <p v-else-if="agent.live && !agent.live.configured" class="hero-note partial">
+        <i class="pi pi-info-circle" />
+        Bu ortamda Foundry anahtarı yapılandırılmamış; model, sürüm, effort ve sistem promptu
+        okunamıyor.
+      </p>
+      <p v-else-if="agent.live?.error" class="hero-note partial">
+        <i class="pi pi-exclamation-triangle" />
+        Ajan tanımı Foundry'den okunamadı. Ad yanlış olabilir ya da anahtar bu ajana yetmiyor.
       </p>
 
       <Tabs v-model:value="activeTab" class="seo-tabs">
@@ -71,10 +116,18 @@ const severity = computed(() => {
           <Tab v-if="agent.id === 'afi-bilgi-sofrasi'" value="sorular">Sorular</Tab>
         </TabList>
         <TabPanels>
-          <TabPanel value="genel"><OverviewPanel v-if="activeTab === 'genel'" :agent="agent" /></TabPanel>
-          <TabPanel value="prompt"><PromptPanel v-if="activeTab === 'prompt'" :agent="agent" /></TabPanel>
-          <TabPanel value="bilgi"><KnowledgePanel v-if="activeTab === 'bilgi'" :agent="agent" /></TabPanel>
-          <TabPanel value="sim"><SimulationPanel v-if="activeTab === 'sim'" :agent="agent" /></TabPanel>
+          <TabPanel value="genel">
+            <OverviewPanel v-if="activeTab === 'genel'" :agent="agent" :loading="loading" />
+          </TabPanel>
+          <TabPanel value="prompt">
+            <PromptPanel v-if="activeTab === 'prompt'" :agent="agent" :loading="loading" />
+          </TabPanel>
+          <TabPanel value="bilgi">
+            <KnowledgePanel v-if="activeTab === 'bilgi'" :agent="agent" :loading="loading" />
+          </TabPanel>
+          <TabPanel value="sim">
+            <SimulationPanel v-if="activeTab === 'sim'" :agent="agent" />
+          </TabPanel>
           <TabPanel v-if="agent.id === 'afi-bilgi-sofrasi'" value="sorular">
             <SorularTab v-if="activeTab === 'sorular'" />
           </TabPanel>
@@ -98,9 +151,10 @@ const severity = computed(() => {
 
 .hero-note {
   display: flex; gap: 9px; align-items: flex-start;
-  margin: 0 0 22px; padding: 11px 14px; border-radius: 12px;
+  margin: 0 0 12px; padding: 11px 14px; border-radius: 12px;
   font-size: 12.5px; line-height: 1.55;
 }
+.hero-note:last-of-type { margin-bottom: 22px; }
 .hero-note i { margin-top: 2px; font-size: 12px; }
 .hero-note.live { background: #eef8f2; color: #2c5a48; }
 .hero-note.live i { color: var(--green); }
@@ -108,4 +162,6 @@ const severity = computed(() => {
 .hero-note.partial i { color: var(--amber); }
 .hero-note.unwired { background: #f2f0ea; color: #63665e; }
 .hero-note.unwired i { color: var(--muted); }
+.hero-note.error { background: #fdf5f3; color: #7a4437; }
+.hero-note.error i { color: var(--coral); }
 </style>

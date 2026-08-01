@@ -7,11 +7,12 @@ import TraceBox from './TraceBox.vue'
 import { label, measureLabel } from '../../../services/foodLabels'
 import { simFoodSuggest, type FoodSuggestion, type SimTrace } from '../../../services/intelligenceSim'
 
+const props = defineProps<{ agentName: string; version: string }>()
+
 /**
  * Menüm doldurma simülasyonu: mobil CustomFoodSheet'teki "Afi doldursun"
- * akışının birebir kopyası. Öneri DÜZENLENEBİLİR taslaktır; alanlar burada da
- * düzenlenebilir durur, çünkü uygulamada da öyle: kullanıcı onaylamadan
- * hiçbir şey kaydedilmez.
+ * akışının birebir kopyası. Öneri DÜZENLENEBİLİR taslaktır; uygulamada da
+ * öyle, kullanıcı onaylamadan hiçbir şey kaydedilmez.
  */
 
 const name = ref('mercimek çorbası')
@@ -19,6 +20,7 @@ const hint = ref('')
 const busy = ref(false)
 const result = ref<FoodSuggestion | null>(null)
 const trace = ref<SimTrace | null>(null)
+const error = ref('')
 
 const examples = ['mercimek çorbası', 'menemen', 'lahmacun', 'ev yapımı kısır']
 
@@ -26,11 +28,14 @@ async function run() {
   const trimmed = name.value.trim()
   if (!trimmed || busy.value) return
   busy.value = true
+  error.value = ''
   result.value = null
   try {
-    const out = await simFoodSuggest(trimmed, hint.value)
+    const out = await simFoodSuggest(trimmed, props.agentName, props.version)
     result.value = out.suggestion
     trace.value = out.trace
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Simülasyon çalıştırılamadı.'
   } finally {
     busy.value = false
   }
@@ -50,13 +55,18 @@ function pick(example: string) {
         <InputText v-model="name" placeholder="Örn. mercimek çorbası" @keyup.enter="run" />
       </label>
       <label class="field">
-        <span>Not <small>(kullanıcının yazdığı açıklama, isteğe bağlı)</small></span>
+        <span>Not <small>(kullanıcının yazdığı açıklama)</small></span>
         <InputText v-model="hint" placeholder="Örn. tereyağsız, az tuzlu" @keyup.enter="run" />
+        <small class="field-note">
+          Ürün ucu bugün yalnız adı gönderiyor; not yerel bir hatırlatma, ajana gitmiyor.
+        </small>
       </label>
       <Button label="Afi doldursun" icon="pi pi-sparkles" :loading="busy" @click="run" />
       <div class="examples">
         <span>Hazır örnek:</span>
-        <button v-for="ex in examples" :key="ex" type="button" @click="pick(ex)">{{ ex }}</button>
+        <button v-for="ex in examples" :key="ex" type="button" :disabled="busy" @click="pick(ex)">
+          {{ ex }}
+        </button>
       </div>
     </div>
 
@@ -78,12 +88,17 @@ function pick(example: string) {
           <div class="sk-grid"><div /><div /><div /><div /></div>
         </div>
 
+        <div v-else-if="error" class="sim-error">
+          <i class="pi pi-exclamation-triangle" />
+          <p>{{ error }}</p>
+        </div>
+
         <div v-else-if="result" class="filled">
           <div class="field-row">
             <span class="field-key">Gruplar</span>
             <div class="chips">
               <span v-for="g in result.groups" :key="g" class="chip-group">{{ label(g) }}</span>
-              <span v-if="!result.groups.length" class="chip-empty">öneri gelmedi</span>
+              <span v-if="!result.groups?.length" class="chip-empty">öneri gelmedi</span>
             </div>
           </div>
 
@@ -93,10 +108,10 @@ function pick(example: string) {
           </div>
 
           <div class="macro-grid">
-            <div class="macro kcal"><small>Enerji</small><strong>{{ result.macros.kcal }}</strong><span>kcal</span></div>
-            <div class="macro"><small>Protein</small><strong>{{ result.macros.protein }}</strong><span>g</span></div>
-            <div class="macro"><small>Karbonhidrat</small><strong>{{ result.macros.carb }}</strong><span>g</span></div>
-            <div class="macro"><small>Yağ</small><strong>{{ result.macros.fat }}</strong><span>g</span></div>
+            <div class="macro kcal"><small>Enerji</small><strong>{{ Math.round(result.macros.kcal) }}</strong><span>kcal</span></div>
+            <div class="macro"><small>Protein</small><strong>{{ Math.round(result.macros.protein) }}</strong><span>g</span></div>
+            <div class="macro"><small>Karbonhidrat</small><strong>{{ Math.round(result.macros.carb) }}</strong><span>g</span></div>
+            <div class="macro"><small>Yağ</small><strong>{{ Math.round(result.macros.fat) }}</strong><span>g</span></div>
           </div>
 
           <p v-if="result.description" class="desc">{{ result.description }}</p>
@@ -123,13 +138,15 @@ function pick(example: string) {
 .field { display: grid; gap: 6px; }
 .field > span { color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
 .field > span small { font-weight: 650; letter-spacing: 0; text-transform: none; }
+.field-note { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .examples { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .examples > span { color: var(--muted); font-size: 11.5px; }
 .examples button {
   padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--canvas); color: #4f5a53; font-size: 11.5px; cursor: pointer;
 }
-.examples button:hover { border-color: var(--green); color: var(--green-dark); }
+.examples button:hover:not(:disabled) { border-color: var(--green); color: var(--green-dark); }
+.examples button:disabled { opacity: .5; cursor: default; }
 
 .sim-stage { display: grid; gap: 13px; }
 
@@ -145,6 +162,10 @@ function pick(example: string) {
 .sk-grid div { height: 52px; border-radius: 11px; background: #eee9dc; animation: pulse 1.3s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .5; } }
 @media (prefers-reduced-motion: reduce) { .sk-line, .sk-grid div { animation: none; } }
+
+.sim-error { display: flex; gap: 10px; align-items: flex-start; margin-top: 20px; padding: 13px; border-radius: 12px; background: #fdf5f3; }
+.sim-error i { margin-top: 2px; color: var(--coral); font-size: 13px; }
+.sim-error p { margin: 0; color: #7a4437; font-size: 12.5px; line-height: 1.55; }
 
 .filled { display: grid; gap: 14px; margin-top: 18px; }
 .field-row { display: grid; gap: 6px; }

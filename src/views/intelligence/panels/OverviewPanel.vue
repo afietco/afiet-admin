@@ -1,38 +1,73 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { effortLabels, indexById, type Agent } from '../../../services/intelligence'
+import { effortLabel, indexById, searchTool, type AgentView } from '../../../services/intelligence'
 
-const props = defineProps<{ agent: Agent }>()
+const props = defineProps<{ agent: AgentView; loading: boolean }>()
 
 /**
  * Effort ve sürüm sabitliği burada yan yana duruyor çünkü ikisi de "aynı soru
- * yarın başka cevap verir mi" sorusunun parçası. Effort okunmadıysa boş
- * bırakılır: uydurulmuş bir "medium", davranışı yanlış açıklardı.
+ * yarın başka cevap verir mi" sorusunun parçası.
+ *
+ * Canlı alanlar okunamadıysa BOŞ kalır. Panel o durumda "okunmadı" der;
+ * beklenen bir değeri gerçekmiş gibi göstermek, ajanın davranışını yanlış
+ * açıklardı.
  */
+const tool = computed(() => searchTool(props.agent.live))
+
+/** Tanım gerçekten okunabildi mi: "dizin yok" ile "okunamadı" ayrı şeyler. */
+const liveRead = computed(() =>
+  Boolean(props.agent.live && props.agent.live.configured && !props.agent.live.error))
+
 const facts = computed(() => {
   const a = props.agent
+  const live = a.live
+  const pinned = live?.pinnedVersion
   return [
-    { label: 'Foundry adı', value: a.name, mono: true },
-    { label: 'Sürüm', value: a.version, note: a.versionPin === 'pinned' ? 'sabitli' : 'sabitli değil' },
-    { label: 'Model', value: a.model, mono: true },
+    { label: 'Foundry adı', value: live?.name ?? null, mono: true, note: live?.name ? null : 'okunmadı' },
+    {
+      label: 'Sürüm',
+      value: live?.version ? `v${live.version}` : null,
+      note: live?.version ? (pinned ? `${pinned} sürümüne sabitli` : 'sabitli değil') : 'okunmadı',
+    },
+    { label: 'Model', value: live?.model ?? null, mono: true, note: live?.model ? null : 'okunmadı' },
     {
       label: 'Reasoning effort',
-      value: a.effort ? effortLabels[a.effort] : null,
-      note: a.effort ? null : 'Foundry\'den okunacak',
+      value: live?.effort ? effortLabel(live.effort) : null,
+      note: live?.effort ? null : 'okunmadı',
     },
-    { label: 'Uç', value: a.endpoint, mono: true, note: a.endpoint ? null : 'bağlı değil' },
+    {
+      label: 'Uç',
+      value: live?.endpoint || null,
+      mono: true,
+      note: live?.endpoint ? null : 'ürün ucuna bağlı değil',
+    },
     { label: 'Kota', value: a.quota, note: a.quota ? null : 'yok' },
     {
       label: 'Bilgi tabanı',
-      value: a.index ? a.index.indexId : null,
+      value: tool.value?.index ?? null,
       mono: true,
-      note: a.index ? `${a.index.queryType} · top_k ${a.index.topK}` : 'bağlı dizin yok',
+      note: tool.value
+        ? `${tool.value.queryType || 'sorgu tipi okunmadı'} · top_k ${tool.value.topK || '?'}`
+        : liveRead.value
+          ? 'bağlı dizin yok'
+          : 'okunmadı',
     },
     { label: 'Uygulamadaki yüzü', value: a.surface, wide: true },
   ]
 })
 
-const boundIndex = computed(() => (props.agent.index ? indexById(props.agent.index.indexId) : null))
+const boundIndex = computed(() => (tool.value?.index ? indexById(tool.value.index) : null))
+
+/** Beklenen dizinle canlı bağ ayrışmışsa bunu söylemek gerek. */
+const drift = computed(() => {
+  if (!liveRead.value) return ''
+  const expected = props.agent.expectedIndex
+  const actual = tool.value?.index ?? null
+  if (expected === actual) return ''
+  if (expected && !actual) return `Bu ajanda ${expected} dizini bekleniyordu ama bağlı araç yok.`
+  if (!expected && actual) return `Bu ajanda dizin beklenmiyordu ama ${actual} bağlı.`
+  return `Beklenen dizin ${expected}, bağlı olan ${actual}.`
+})
 </script>
 
 <template>
@@ -41,7 +76,8 @@ const boundIndex = computed(() => (props.agent.index ? indexById(props.agent.ind
       <dl class="fact-grid">
         <div v-for="f in facts" :key="f.label" :class="{ wide: f.wide }">
           <dt>{{ f.label }}</dt>
-          <dd v-if="f.value" :class="{ mono: f.mono }">
+          <dd v-if="loading && !f.value && f.note === 'okunmadı'" class="loading">yükleniyor…</dd>
+          <dd v-else-if="f.value" :class="{ mono: f.mono }">
             {{ f.value }}
             <small v-if="f.note">{{ f.note }}</small>
           </dd>
@@ -49,6 +85,11 @@ const boundIndex = computed(() => (props.agent.index ? indexById(props.agent.ind
         </div>
       </dl>
     </div>
+
+    <p v-if="drift" class="drift">
+      <i class="pi pi-exclamation-triangle" />
+      {{ drift }} Paneldeki beklenti ile Foundry'deki tanım ayrışmış.
+    </p>
 
     <div v-if="boundIndex" class="side-card">
       <h3><i class="pi pi-database" /> {{ boundIndex.id }}</h3>
@@ -75,7 +116,15 @@ const boundIndex = computed(() => (props.agent.index ? indexById(props.agent.ind
 .fact-grid dd { margin: 5px 0 0; color: var(--ink); font-size: 13.5px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
 .fact-grid dd.mono { font-size: 12.5px; }
 .fact-grid dd.unknown { color: #a3a59c; font-weight: 600; font-style: italic; }
+.fact-grid dd.loading { color: #c2c4bb; font-weight: 600; }
 .fact-grid dd small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 650; font-style: normal; }
+
+.drift {
+  display: flex; gap: 9px; align-items: flex-start; margin: 0;
+  padding: 12px 14px; border: 1px solid #e8d9b4; border-radius: 12px; background: #fdf7e8;
+  color: #6b5a34; font-size: 12.5px; line-height: 1.55;
+}
+.drift i { margin-top: 2px; color: var(--amber); font-size: 12px; }
 
 .side-card { padding: 17px 19px; border: 1px solid var(--line); border-radius: 15px; background: #f4faf6; }
 .side-card h3 { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 13.5px; }

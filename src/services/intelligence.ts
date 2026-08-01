@@ -1,20 +1,20 @@
 /**
  * Zeka merkezi: ajanlar, bilgi tabanları ve tazeleme tek çatı altında.
  *
- * BU DOSYA ŞU AN MOCK'TUR. Ajan üstverisi (model, sürüm, effort, araç bağları,
- * sistem promptu) Azure AI Foundry'de yaşar; panele taşıyacak bir uç henüz yok.
- * Buradaki kayıt elle tutuluyor ve DOĞRULANMIŞ olanla BİLİNMEYEN'i ayırıyor:
- * koddan/dokümandan teyit edilen alanlar yazılı, teyit edilemeyen alanlar
- * `null` ve panelde "Foundry'den okunacak" diye görünür. Uydurulmuş bir effort
- * değeri, boş bırakılmış bir alandan daha zararlıdır.
+ * İKİ KAYNAK, BİLİNÇLİ AYRIM:
  *
- * Backend fazında değişecek tek şey bu dosyanın gövdesidir: tipler bir
- * `/v1/admin/zeka/*` yanıtının şekli olacak biçimde yazıldı, bileşenler
- * dokunulmadan gerçek uca bağlanır.
+ *  - Bu dosyadaki kayıt ARAYÜZ KOPYASIDIR: etiket, ne işe yaradığı,
+ *    uygulamadaki yüzü, kota cümlesi, bilinmesi pahalı tuzaklar. Bunlar ürün
+ *    bilgisi; panelde yaşamaları doğru, API'nin işi değil.
+ *  - Ad, sürüm, model, effort, araç bağları ve sistem promptu Azure AI
+ *    Foundry'de yaşar ve `/v1/admin/zeka/agents` ucundan CANLI okunur.
+ *    Sunucu okuyamazsa alan boş kalır ve panel "okunmadı" der.
+ *
+ * Canlı alanlar buraya elle YAZILMAZ. Bir ajanın sürümü portalda değiştiğinde
+ * panelin eski değeri güvenle göstermesi, hiç göstermemesinden daha kötü.
  */
 
-/** Panel her yerde mock olduğunu söylesin; tek bayrak, tek yerden kalkar. */
-export const MOCK = true
+import { authorizedFetch, signOut } from './auth'
 
 export type AgentId =
   | 'afi-nutiriton-detector'
@@ -33,54 +33,67 @@ export type AgentWiring =
   /** Foundry'de duruyor, hiçbir uca bağlı değil. */
   | 'unwired'
 
-/** Sürüm ne kadar sabitlenmiş: kayan sürüm sessiz davranış değişimi demek. */
-export type VersionPin = 'pinned' | 'floating'
-
 export type SimKind = 'food-suggest' | 'photo-chat' | 'ask' | 'chat'
 
 export type IndexId = 'bilgi-sofrasi' | 'diyetisyen-bilgi' | 'psikolog-bilgi'
 
-export type AgentIndexBinding = {
-  indexId: IndexId
-  /** Foundry'deki azure_ai_search aracının sorgu tipi. */
-  queryType: string
-  topK: number
-}
-
-export type Agent = {
+/** Panelde yaşayan ürün kopyası. Canlı hiçbir alan burada yok. */
+export type AgentCopy = {
   id: AgentId
-  /** Foundry'deki birebir ad. Yanlış yazılırsa ajan bulunamaz. */
-  name: string
-  /** Panelde okunan insan adı. */
   label: string
-  /** Ne işe yarar, tek cümle. */
   purpose: string
-  version: string
-  versionPin: VersionPin
-  model: string
-  /** Foundry reasoning effort. null = teyit edilmedi, Foundry'den okunacak. */
-  effort: 'low' | 'medium' | 'high' | null
   wiring: AgentWiring
   /** Durumun tek cümlelik dürüst hâli; belirsizlik varsa burada yazar. */
   wiringNote: string
   /** Uygulamadaki yüzü: kullanıcı bu ajanı nerede görür. */
   surface: string
-  /** Ajanı çağıran uç; bağlı değilse null. */
-  endpoint: string | null
   /** Kota cümlesi; yoksa null. */
   quota: string | null
-  /** Bağlı bilgi tabanı; yoksa null. */
-  index: AgentIndexBinding | null
-  /** Sistem promptunun tam metni. null = repoda kopya yok, Foundry'de. */
-  promptText: string | null
   /**
-   * Prompt hakkında koddan/karar kaydından teyitli kısıtlar. Tam metnin
-   * yerine geçmez; ajanın neye zorlandığını gösterir.
+   * Beklenen bilgi tabanı. Canlı araç listesi okunabiliyorsa O geçerlidir;
+   * bu alan yalnız okunamadığında ve beklenenle canlının ayrıştığını
+   * göstermek için kullanılır.
+   */
+  expectedIndex: IndexId | null
+  /**
+   * Koddan ve karar kaydından teyitli davranış sınırları. Promptun yerine
+   * geçmez; sunucunun bir kısmını çıktı üzerinde ayrıca zorladığı kurallar.
    */
   promptConstraints: string[]
-  simKind: SimKind
   /** Ajana özgü, bilinmesi pahalı tuzaklar. */
   traps: string[]
+}
+
+/** Foundry'de tanımlı bir araç, sunucunun okuduğu hâliyle. */
+export type AgentTool = {
+  type: string
+  index?: string
+  queryType?: string
+  topK?: number
+}
+
+/** `/v1/admin/zeka/agents` satırı. Boş alan "sağlayıcı vermedi" demek. */
+export type AgentLive = {
+  id: string
+  name: string
+  pinnedVersion: string
+  endpoint: string
+  simKind: SimKind
+  configured: boolean
+  error?: string
+  version?: string
+  model?: string
+  effort?: string
+  tools?: AgentTool[]
+  /** Yalnız tek ajan ucunda döner. */
+  instructions?: string
+  raw?: unknown
+}
+
+/** Kopya + canlı verinin birleşimi; bileşenlerin gördüğü tip. */
+export type AgentView = AgentCopy & {
+  /** Canlı veri henüz yüklenmediyse ya da uç düştüyse null. */
+  live: AgentLive | null
 }
 
 export type KbIndex = {
@@ -99,7 +112,12 @@ export type KbIndex = {
   liveCounts: boolean
 }
 
-/** Azure AI Search hizmetinin kendi sınırları (afiet-arama, free tier). */
+/**
+ * Azure AI Search hizmetinin kendi sınırları (afiet-arama, free tier).
+ * Bunları veren bir uç yok: Azure yönetim API'si ayrı bir kimlik ister ve
+ * backend'in bugün oraya erişimi yok. Elle tutuluyor, katman değişirse
+ * güncellenmeli.
+ */
 export const searchService = {
   name: 'afiet-arama',
   tier: 'Free',
@@ -120,53 +138,37 @@ const brandRules = [
   'Ürün adları yayınlanmaz: ajan kendini "afiet\'in beslenme yardımcısı" diye tanıtır',
 ]
 
-export const agents: Agent[] = [
+export const agentCopy: AgentCopy[] = [
   {
     id: 'afi-nutiriton-detector',
-    name: 'afi-nutiriton-detector',
     label: 'Menüm doldurma',
     purpose: 'Yemeğin adından grup, ölçü ve yaklaşık makro önerir.',
-    version: 'v3',
-    versionPin: 'floating',
-    model: 'gpt-5.4-mini',
-    effort: null,
     wiring: 'live',
     wiringNote: 'Üç ortamda da canlı, gerçek ajanla çalışıyor.',
     surface: 'Mobil · Besin Ekle → "Afi doldursun"',
-    endpoint: 'POST /v1/afi/food-suggest',
     quota: 'Kullanıcı başına günde 30 çağrı (afi_food_suggest sayacı)',
-    index: null,
-    promptText: null,
+    expectedIndex: null,
     promptConstraints: [
       'Çıktı 12 besin grubu anahtarından en fazla 3 tanesi',
       'Ölçü 8 anahtardan biri; tanınmayan ölçü sunucuda "porsiyon"a düşer',
       'Öneri her zaman DÜZENLENEBİLİR taslak; kullanıcı onaylamadan kaydedilmez',
       ...brandRules,
     ],
-    simKind: 'food-suggest',
     traps: [
       'Ajan adındaki yazım hatası (nutiriton) KALICI: Foundry ajanı birebir adla çözer, düzeltmek yeni ajan demek.',
-      'Sürüm sabitlenmemiş; portalda yeni sürüm yayınlanınca üç ortam birden onu kullanır.',
       'Sunucu çıktıyı süzer (sanitize): geçersiz grup atılır, makro 0-3000 kcal aralığına kırpılır.',
     ],
   },
   {
     id: 'afi-food-vision',
-    name: 'afi-food-vision',
     label: 'Fotoğraftan tanıma',
     purpose: 'Fotoğraftaki yiyeceği çok turlu sohbetle tanır ve makro tahmini verir.',
-    version: 'v1',
-    versionPin: 'floating',
-    model: 'gpt-5.4-mini',
-    effort: null,
     wiring: 'partial',
     wiringNote:
       'dev ve staging\'de canlı. Data-URL sınırı düzeltmesinin prod\'a çıktığı bu panelden doğrulanmadı.',
     surface: 'Mobil · Besin Ekle → kamera düğmesi → AfiPhotoSheet',
-    endpoint: 'POST /v1/afi/photo-chat',
     quota: 'Kullanıcı başına günde 20 tur',
-    index: null,
-    promptText: null,
+    expectedIndex: null,
     promptConstraints: [
       'Yanıt üç türden biri: question | result | not_food',
       'result için ad zorunlu; adsız sonuç sunucuda soruya düşürülür',
@@ -174,7 +176,6 @@ export const agents: Agent[] = [
       'İlk turdaki hint (yazılmış ad) referanstır; fotoğrafla çelişirse fotoğrafa güvenilir',
       ...brandRules,
     ],
-    simKind: 'photo-chat',
     traps: [
       'Fotoğraf SAKLANMAZ: Files API\'ye purpose=assistants ile yüklenir, tur dönünce silinir.',
       'Data-URL yolu Azure\'un 65.520 karakter sınırında 400 verir; gerçek boyutlu her fotoğrafta patlar.',
@@ -183,109 +184,75 @@ export const agents: Agent[] = [
   },
   {
     id: 'afi-bilgi-sofrasi',
-    name: 'afi-bilgi-sofrasi',
     label: 'Afi\'ye sor',
     purpose: 'Landing sayfasındaki ziyaretçi sorularını bilgi tabanından yanıtlar.',
-    version: 'v2',
-    versionPin: 'pinned',
-    model: 'gpt-5.4-mini',
-    effort: null,
     wiring: 'live',
     wiringNote: 'Prod\'da canlı, afiet.co SSS bölümünün altında.',
     surface: 'Web · afiet.co ana sayfa, SSS altındaki "Afi\'ye sor" kartı',
-    endpoint: 'POST /public/afi/ask (SSE akışı)',
     quota: 'Oturum ve IP başına pencere sınırı + Turnstile',
-    index: { indexId: 'bilgi-sofrasi', queryType: 'vector_simple_hybrid', topK: 8 },
-    promptText: null,
+    expectedIndex: 'bilgi-sofrasi',
     promptConstraints: [
       'Yalnız bilgi tabanındaki belgelere dayanır; bilmediğini söyler',
       'Cevap DÜZ METİN basılır: panelde markdown/HTML render edilmez (XSS yüzeyi)',
       'Alıntılar yalnız site içi yollar; model bir host uydurursa düşürülür',
       ...brandRules,
     ],
-    simKind: 'ask',
     traps: [
-      'ASK_AGENT_VERSION=2 ile sabitli: üç ortam TEK Foundry projesini paylaşıyor, sabitlenmezse yeni sürüm hepsini birden etkiler.',
       'Sohbet geçmişi İSTEMCİDEN alınmaz, sunucunun kendi kaydından gelir. İstemci geçmiş verebilseydi sahte asistan turu uydurup promptu ezebilirdi.',
       'Ham Foundry akışı ajanın tam sistem promptunu taşıyan kareler içerir; hiçbir şey olduğu gibi iletilmez.',
     ],
   },
   {
     id: 'afi',
-    name: 'afi',
     label: 'Ana yardımcı',
     purpose: 'Foto tanıma, yaklaşık kalori, denge ve uygulama rehberliği için genel yardımcı.',
-    version: 'v1',
-    versionPin: 'floating',
-    model: 'gpt-5.4-mini',
-    effort: 'low',
     wiring: 'unwired',
-    wiringNote: 'Foundry\'de duruyor, hiçbir uca bağlı değil.',
+    wiringNote: 'Foundry\'de duruyor, hiçbir ürün ucuna bağlı değil.',
     surface: 'Henüz yok; planlanan uygulama içi genel yardımcı',
-    endpoint: null,
     quota: null,
-    index: null,
-    promptText: null,
+    expectedIndex: null,
     promptConstraints: [
       'Sağlık teşhisi ve diyet reçetesi vermez',
       'Kalori söyler ama hedef/limit çerçevesi kurmaz ("yaklaşık 320 kcal")',
       ...brandRules,
     ],
-    simKind: 'chat',
     traps: [
       'Bilerek dizinsiz bırakıldı: derin literatür ihtiyacı en az bu ajanda, arama kotası 3/3 dolu.',
     ],
   },
   {
     id: 'afi-diyetisyen',
-    name: 'afi-diyetisyen',
     label: 'Beslenme uzmanı',
     purpose: 'El ölçüsü dilinde beslenme sorularını kendi bilgi tabanından yanıtlar.',
-    version: 'v2',
-    versionPin: 'floating',
-    model: 'gpt-5.4-mini',
-    effort: 'medium',
     wiring: 'unwired',
     wiringNote: 'Foundry\'de canlı ve bilgi tabanı bağlı, ama uygulamada bir yüzü yok.',
     surface: 'Henüz yok',
-    endpoint: null,
     quota: null,
-    index: { indexId: 'diyetisyen-bilgi', queryType: 'vector_simple_hybrid', topK: 8 },
-    promptText: null,
+    expectedIndex: 'diyetisyen-bilgi',
     promptConstraints: [
       'Teşhis, ilaç, takviye ve kişiye özel klinik plan YOK',
       'Birincil dil el ölçüsü; gram ikincil',
-      'Hedef kilo ve süre vaadi yasak',
       ...brandRules,
     ],
-    simKind: 'chat',
     traps: [
       'v1\'e dokunulmadı: talimat değişikliği yeni sürüm olarak eklenir, mevcut sürüm değiştirilmez.',
     ],
   },
   {
     id: 'afi-psikolog',
-    name: 'afi-psikolog',
     label: 'Destek sohbeti',
     purpose: 'Yemekle ilişki ve duygusal yeme üzerine yargısız destek sohbeti.',
-    version: 'v2',
-    versionPin: 'floating',
-    model: 'gpt-5.4-mini',
-    effort: 'medium',
     wiring: 'unwired',
     wiringNote: 'Foundry\'de canlı ve bilgi tabanı bağlı, ama uygulamada bir yüzü yok.',
     surface: 'Henüz yok',
-    endpoint: null,
     quota: null,
-    index: { indexId: 'psikolog-bilgi', queryType: 'vector_simple_hybrid', topK: 8 },
-    promptText: null,
+    expectedIndex: 'psikolog-bilgi',
     promptConstraints: [
       'Tanı dili YOK; teşhis ve tedavi vermez',
       '5 adımlı kriz protokolü: yönlendirme 112 üzerinden',
       'Kayıp draması ve suçluluk dili yasak',
       ...brandRules,
     ],
-    simKind: 'chat',
     traps: [
       'Kriz protokolü ajanın en kritik davranışı; sürüm değiştirirken önce bu yol denenmeli.',
     ],
@@ -339,12 +306,28 @@ export const indexes: KbIndex[] = [
   },
 ]
 
-export function agentById(id: string): Agent | undefined {
-  return agents.find((a) => a.id === id)
+export function copyById(id: string): AgentCopy | undefined {
+  return agentCopy.find((a) => a.id === id)
 }
 
-export function indexById(id: IndexId): KbIndex | undefined {
+export function indexById(id: string): KbIndex | undefined {
   return indexes.find((i) => i.id === id)
+}
+
+/** Kopya ile canlı satırları kimlik üzerinden birleştirir. */
+export function mergeAgents(live: AgentLive[]): AgentView[] {
+  return agentCopy.map((copy) => ({
+    ...copy,
+    live: live.find((l) => l.id === copy.id) ?? null,
+  }))
+}
+
+/**
+ * Ajanın azure_ai_search aracı. Canlı araç listesi okunabiliyorsa ONDAN gelir;
+ * okunamadıysa null döner ve panel beklenen dizini ayrı bir dille gösterir.
+ */
+export function searchTool(live: AgentLive | null): AgentTool | null {
+  return live?.tools?.find((t) => t.type === 'azure_ai_search') ?? null
 }
 
 export const wiringMeta: Record<AgentWiring, { label: string; severity: 'success' | 'warn' | 'idle' }> = {
@@ -353,41 +336,42 @@ export const wiringMeta: Record<AgentWiring, { label: string; severity: 'success
   unwired: { label: 'Bağlı değil', severity: 'idle' },
 }
 
-export const effortLabels: Record<'low' | 'medium' | 'high', string> = {
+const EFFORT_LABELS: Record<string, string> = {
   low: 'Düşük',
   medium: 'Orta',
   high: 'Yüksek',
 }
 
-/**
- * Vektör aramanın bu sorgu için döndürdüğü parçalar. Gerçek uçta Foundry'nin
- * azure_ai_search aracı döner; burada dizinin kendi dosyalarından, sorgudaki
- * kelimelere göre kaba bir eşleşme üretiliyor ki panel boş kutu göstermesin.
- */
-export type RetrievedChunk = { id: string; title: string; score: number }
+/** Sağlayıcı bilmediğimiz bir değer verirse ham hâli okunur, kaybolmaz. */
+export function effortLabel(effort: string | undefined) {
+  if (!effort) return ''
+  return EFFORT_LABELS[effort.toLowerCase()] ?? effort
+}
 
-export function mockRetrieval(indexId: IndexId, query: string, topK: number): RetrievedChunk[] {
-  const idx = indexById(indexId)
-  if (!idx?.files) return []
-  const words = query.toLocaleLowerCase('tr').split(/\s+/).filter((w) => w.length > 3)
+// ── API ────────────────────────────────────────────────────────────────────
 
-  // Arama BELGE değil PARÇA döndürür; her md dosyası birden çok parçaya
-  // bölünmüştür. Dosya başına tek satır üretmek top_k 8'i altı dosyalık bir
-  // dizinde hiç doldurmaz ve panelde "top_k 8" yazıp 6 satır göstermek,
-  // aramanın nasıl çalıştığı hakkında yanlış fikir verirdi.
-  const chunks: RetrievedChunk[] = []
-  idx.files.forEach((f, fileIndex) => {
-    const hay = `${f.title} ${f.slug}`.toLocaleLowerCase('tr')
-    const hits = words.filter((w) => hay.includes(w.slice(0, 5))).length
-    for (let c = 1; c <= f.chunks; c += 1) {
-      chunks.push({
-        id: `${f.slug}-${String(c).padStart(2, '0')}`,
-        title: f.title,
-        // Aynı dosyanın parçaları birbirine yakın skorlanır, sonrakiler biraz
-        // düşer: hibrit aramanın tipik dağılımı.
-        score: 0.44 + hits * 0.16 - fileIndex * 0.02 - (c - 1) * 0.012,
-      })
-    }
-  })
-  return chunks.sort((a, b) => b.score - a.score).slice(0, topK)
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response
+  try {
+    response = await authorizedFetch(path, init)
+  } catch {
+    // Ham "Failed to fetch" baştan sona Türkçe bir panelde görünmemeli.
+    throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
+  }
+  if (response.status === 401) signOut()
+  if (!response.ok) {
+    let message = 'İşlem tamamlanamadı.'
+    try {
+      const body = await response.json()
+      message = body?.error?.message || message
+    } catch { /* boş gövde */ }
+    throw new Error(message)
+  }
+  if (response.status === 204) return undefined as T
+  return response.json() as Promise<T>
+}
+
+export const zekaApi = {
+  agents: () => request<{ items: AgentLive[]; configured: boolean }>('/v1/admin/zeka/agents'),
+  agent: (id: string) => request<AgentLive>(`/v1/admin/zeka/agents/${encodeURIComponent(id)}`),
 }

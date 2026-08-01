@@ -1,16 +1,14 @@
 /**
- * Zeka merkezi simülasyonlarının MOCK motoru.
+ * Zeka merkezi simülasyonları: GERÇEK ajan çağrıları.
  *
- * Tipler uygulamanın gerçek sözleşmeleriyle birebirdir (internal/afi/afi.go,
- * internal/afi/vision.go, internal/afi/ask.go). Gerçek uca bağlanınca bu
- * dosyadaki üreteçler yerini fetch'e bırakır, bileşenler değişmez.
+ * Uçlar ürünün kendi yolunu koşar (aynı Suggester / VisionAssistant / Asker),
+ * yalnız kullanıcı kotasına yazmazlar. Yani buradan görülen davranış,
+ * uygulamada görülenle aynı koddan çıkıyor.
  *
- * Mock kasten "fazla iyi" değil: gecikme taklit edilir, kota tükenir, sohbet
- * ilk turda sonuca atlamaz. Kusursuz cevap veren bir simülasyon, ekranın
- * gerçekte nasıl davrandığı hakkında yanlış fikir verirdi.
+ * Tipler sunucu sözleşmesiyle birebirdir (internal/afi/*.go).
  */
 
-import type { AgentId } from './intelligence'
+import { authorizedFetch, signOut } from './auth'
 
 export type Macros = { kcal: number; protein: number; carb: number; fat: number }
 
@@ -18,7 +16,7 @@ export type FoodSuggestion = {
   groups: string[]
   measure: string
   macros: Macros
-  description: string
+  description?: string
 }
 
 export type PhotoFood = FoodSuggestion & { name: string; inPool: boolean }
@@ -26,15 +24,15 @@ export type PhotoFood = FoodSuggestion & { name: string; inPool: boolean }
 export type PhotoReply = {
   kind: 'question' | 'result' | 'not_food'
   text: string
-  quickReplies: string[]
+  quickReplies: string[] | null
   needsPhoto: boolean
-  food?: PhotoFood
-  extraFoods: PhotoFood[]
+  food?: PhotoFood | null
+  extraFoods?: PhotoFood[] | null
 }
 
 export type AskSource = { title: string; url: string }
 
-/** Bir simülasyon turunun ölçülen tarafı; panel bunu ham kutuda gösterir. */
+/** Bir turun ölçülen tarafı; panel bunu ham kutuda gösterir. */
 export type SimTrace = {
   agent: string
   version: string
@@ -42,359 +40,226 @@ export type SimTrace = {
   request: unknown
   response: unknown
   latencyMs: number
-  /** Bilgi tabanı bağlıysa çekilen parça kimlikleri. */
-  retrieved?: string[]
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-/** 600-1400 ms arası, gerçek ajan turlarının kabaca aralığı. */
-function latency(seed: string) {
-  let h = 0
-  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) % 800
-  return 600 + h
-}
-
-// ── Menüm doldurma (afi-nutiriton-detector) ────────────────────────────────
-
-type SeedFood = { match: string[]; s: FoodSuggestion }
-
-const foodSeeds: SeedFood[] = [
-  {
-    match: ['mercimek', 'çorba', 'corba'],
-    s: {
-      groups: ['bakliyat', 'sebze'],
-      measure: 'kase',
-      macros: { kcal: 180, protein: 9, carb: 26, fat: 4 },
-      description: 'Yaklaşık bir kase için. Yanına ekmek gelirse tahıl da eklenir.',
-    },
-  },
-  {
-    match: ['menemen', 'yumurta'],
-    s: {
-      groups: ['protein', 'sebze', 'yag'],
-      measure: 'porsiyon',
-      macros: { kcal: 240, protein: 14, carb: 8, fat: 17 },
-      description: 'İki yumurtalı, yaklaşık bir tava payı.',
-    },
-  },
-  {
-    match: ['pilav', 'bulgur'],
-    s: {
-      groups: ['tahil'],
-      measure: 'kase',
-      macros: { kcal: 210, protein: 5, carb: 42, fat: 3 },
-      description: 'Yaklaşık bir kase, tereyağlı pişirimde biraz daha yağlı olur.',
-    },
-  },
-  {
-    match: ['lahmacun', 'pide'],
-    s: {
-      groups: ['hamurisi', 'protein'],
-      measure: 'adet',
-      macros: { kcal: 300, protein: 13, carb: 38, fat: 10 },
-      description: 'Bir adet, orta boy. Limon ve yeşillik yanında sebze sayılır.',
-    },
-  },
-  {
-    match: ['yoğurt', 'yogurt', 'ayran'],
-    s: {
-      groups: ['sut'],
-      measure: 'kase',
-      macros: { kcal: 120, protein: 9, carb: 11, fat: 4 },
-      description: 'Yaklaşık bir kase, tam yağlı.',
-    },
-  },
-  {
-    match: ['salata', 'çoban', 'coban'],
-    s: {
-      groups: ['sebze', 'yag'],
-      measure: 'kase',
-      macros: { kcal: 90, protein: 2, carb: 9, fat: 6 },
-      description: 'Zeytinyağlı, yaklaşık bir kase.',
-    },
-  },
-  {
-    match: ['baklava', 'tatlı', 'tatli'],
-    s: {
-      groups: ['tatli', 'kuruyemis'],
-      measure: 'dilim',
-      macros: { kcal: 330, protein: 5, carb: 40, fat: 17 },
-      description: 'Bir dilim, fıstıklı. Şerbetli tatlılarda porsiyon küçük tutulur.',
-    },
-  },
-]
-
-const fallbackFood: FoodSuggestion = {
-  groups: ['protein', 'tahil'],
-  measure: 'porsiyon',
-  macros: { kcal: 260, protein: 12, carb: 30, fat: 9 },
-  description: 'Yaklaşık bir porsiyon. Bu bir tahmin, istersen değerleri değiştir.',
-}
-
-export async function simFoodSuggest(name: string, hint: string): Promise<{ suggestion: FoodSuggestion; trace: SimTrace }> {
-  const ms = latency(name)
-  await wait(ms)
-  const key = name.toLocaleLowerCase('tr')
-  const seed = foodSeeds.find((f) => f.match.some((m) => key.includes(m)))
-  const suggestion = seed ? { ...seed.s, macros: { ...seed.s.macros } } : { ...fallbackFood }
-  if (hint.trim()) {
-    suggestion.description = `${suggestion.description} Notunu dikkate aldım: "${hint.trim()}".`
+async function request<T>(path: string, body: unknown): Promise<T> {
+  let response: Response
+  try {
+    response = await authorizedFetch(path, { method: 'POST', body: JSON.stringify(body) })
+  } catch {
+    throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
   }
+  if (response.status === 401) signOut()
+  if (!response.ok) {
+    let message = 'Simülasyon çalıştırılamadı.'
+    try {
+      const payload = await response.json()
+      message = payload?.error?.message || message
+    } catch { /* boş gövde */ }
+    throw new Error(message)
+  }
+  return response.json() as Promise<T>
+}
+
+// ── Menüm doldurma ─────────────────────────────────────────────────────────
+
+export async function simFoodSuggest(
+  name: string,
+  agentName: string,
+  version: string,
+): Promise<{ suggestion: FoodSuggestion; trace: SimTrace }> {
+  const req = { name }
+  const out = await request<{ suggestion: FoodSuggestion; latencyMs: number }>(
+    '/v1/admin/zeka/sim/food-suggest', req,
+  )
   return {
-    suggestion,
+    suggestion: out.suggestion,
     trace: {
-      agent: 'afi-nutiriton-detector',
-      version: 'v3',
+      agent: agentName,
+      version,
       endpoint: 'POST /v1/afi/food-suggest',
-      request: { name, description: hint || undefined },
-      response: suggestion,
-      latencyMs: ms,
+      request: req,
+      response: out.suggestion,
+      latencyMs: out.latencyMs,
     },
   }
 }
 
-// ── Fotoğraftan tanıma (afi-food-vision) ───────────────────────────────────
+// ── Fotoğraftan tanıma ─────────────────────────────────────────────────────
 
-/**
- * Sohbet süreç odaklıdır: ajan ilk turda çoğu zaman soru sorar, sonuca ikinci
- * turda varır. Simülasyon bu ritmi korur, yoksa ekranın soru durumu hiç
- * görülmezdi.
- */
-export async function simPhotoTurn(input: {
-  turnIndex: number
-  text: string
-  hasImage: boolean
-  hint: string
-}): Promise<{ reply: PhotoReply; trace: SimTrace }> {
-  const ms = latency(`${input.turnIndex}${input.text}`)
-  await wait(ms)
-
-  let reply: PhotoReply
-  if (!input.hasImage && input.turnIndex === 0) {
-    reply = {
-      kind: 'question',
-      text: 'Bir fotoğraf göndersen tanımaya çalışayım.',
-      quickReplies: [],
-      needsPhoto: true,
-      extraFoods: [],
-    }
-  } else if (input.turnIndex === 0) {
-    reply = {
-      kind: 'question',
-      text: input.hint.trim()
-        ? `"${input.hint.trim()}" gibi duruyor. Porsiyonu tarif eder misin?`
-        : 'Tabakta ızgara tavuk ve bulgur pilavı görüyorum. Porsiyon ne kadardı?',
-      quickReplies: ['Küçük bir tabak', 'Normal porsiyon', 'Büyük porsiyon'],
-      needsPhoto: false,
-      extraFoods: [],
-    }
-  } else {
-    reply = {
-      kind: 'result',
-      text: 'Tamamdır, yaklaşık değerler şöyle. İstediğin alanı değiştirebilirsin.',
-      quickReplies: [],
-      needsPhoto: false,
-      food: {
-        name: 'Izgara tavuk',
-        groups: ['protein'],
-        measure: 'porsiyon',
-        macros: { kcal: 220, protein: 34, carb: 0, fat: 9 },
-        description: 'Yaklaşık bir avuç içi büyüklüğünde, derisiz.',
-        inPool: true,
-      },
-      extraFoods: [
-        {
-          name: 'Bulgur pilavı',
-          groups: ['tahil'],
-          measure: 'kase',
-          macros: { kcal: 190, protein: 5, carb: 38, fat: 3 },
-          description: 'Karede tavuğun yanında görünüyor.',
-          inPool: true,
-        },
-        {
-          name: 'Çoban salata',
-          groups: ['sebze', 'yag'],
-          measure: 'kase',
-          macros: { kcal: 90, protein: 2, carb: 9, fat: 6 },
-          description: 'Küçük bir kase kadar.',
-          inPool: false,
-        },
-      ],
-    }
+export async function simPhotoTurn(
+  input: { conversationId: string | null; text: string; imageBase64: string; hint: string },
+  agentName: string,
+  version: string,
+): Promise<{ conversationId: string; reply: PhotoReply; trace: SimTrace }> {
+  const req = {
+    conversationId: input.conversationId || undefined,
+    text: input.text || undefined,
+    imageBase64: input.imageBase64 || undefined,
+    // hint yalnız ilk turda anlamlı; sunucu da öyle davranıyor.
+    hint: input.conversationId ? undefined : input.hint || undefined,
   }
-
+  const out = await request<PhotoReply & { conversationId: string; latencyMs: number }>(
+    '/v1/admin/zeka/sim/photo-chat', req,
+  )
+  const reply: PhotoReply = {
+    kind: out.kind,
+    text: out.text,
+    quickReplies: out.quickReplies ?? [],
+    needsPhoto: out.needsPhoto,
+    food: out.food ?? null,
+    extraFoods: out.extraFoods ?? [],
+  }
   return {
+    conversationId: out.conversationId,
     reply,
     trace: {
-      agent: 'afi-food-vision',
-      version: 'v1',
+      agent: agentName,
+      version,
       endpoint: 'POST /v1/afi/photo-chat',
-      request: {
-        conversationId: input.turnIndex === 0 ? null : 'conv_mock_8f31',
-        text: input.text || undefined,
-        // Gerçek istekte burada file_id var: fotoğraf Files API'ye yüklenir,
-        // tur dönünce silinir. Data-URL yolu 65.520 karakterde patlıyordu.
-        fileId: input.hasImage ? 'assistant-file_mock_a71c' : undefined,
-        hint: input.turnIndex === 0 && input.hint ? input.hint : undefined,
-      },
+      // Fotoğrafın kendisi ize KONMAZ: base64 gövdesi ham kutuyu kilitler ve
+      // orada görülecek bir bilgi de yok.
+      request: { ...req, imageBase64: req.imageBase64 ? '[base64, ize konmadı]' : undefined },
       response: reply,
-      latencyMs: ms,
+      latencyMs: out.latencyMs,
     },
   }
 }
 
-// ── Afi'ye sor (afi-bilgi-sofrasi) ─────────────────────────────────────────
-
-type AskSeed = { match: string[]; answer: string; sources: AskSource[] }
-
-const askSeeds: AskSeed[] = [
-  {
-    match: ['kalori', 'sayma', 'saymak'],
-    answer:
-      'afiet kalori saydırmaz. Tabağını beş grup üzerinden dengelemeni ister: sebze, meyve, protein, tahıl ve süt.\n\nKalori merak edersen yaklaşık değeri gösterir ama bir hedef ya da limit kurmaz. Ölçü dili el ölçüsüdür: bir avuç, bir kase, bir dilim.',
-    sources: [
-      { title: 'afiet nasıl çalışır', url: '/#nasil-calisir' },
-      { title: 'Porsiyon ölçüleri: el ölçüsü', url: '/blog/porsiyon-olculeri-el-olcusu' },
-    ],
-  },
-  {
-    match: ['ücret', 'ucret', 'fiyat', 'para', 'abone'],
-    answer:
-      'Şu an beta dönemindeyiz ve katılım ücretsiz. Fiyatlandırma netleştiğinde beta katılımcılarına önce haber vereceğiz.',
-    sources: [{ title: 'Beta', url: '/beta' }],
-  },
-  {
-    match: ['veri', 'gizlilik', 'kvkk', 'sil'],
-    answer:
-      'Verilerini istediğin an silebilirsin: uygulamada Hesabım altından hesap silme tek adımdır ve kayıtların da birlikte gider.\n\nÖlçümlerin ve öğün kayıtların üçüncü taraflara satılmaz.',
-    sources: [
-      { title: 'Gizlilik', url: '/gizlilik' },
-      { title: 'Hesap silme', url: '/hesap-sil' },
-    ],
-  },
-  {
-    match: ['android', 'ios', 'iphone', 'indir', 'uygulama'],
-    answer:
-      'iOS tarafında TestFlight üzerinden beta davetleri gidiyor. Android tarafı için mağaza hazırlığı sürüyor; beta formunu doldurursan sıraya girersin.',
-    sources: [{ title: 'Beta', url: '/beta' }],
-  },
-]
+// ── Afi'ye sor (akış) ──────────────────────────────────────────────────────
 
 /**
- * Cevabı parça parça yayınlar (gerçek uç SSE akışı). emit her parçada çağrılır;
- * false dönerse akış kesilir (ziyaretçi vazgeçti).
+ * Akan uç /v1 DIŞINDA duruyor: oradaki 30 saniyelik zaman aşımı akan gövdenin
+ * üstüne 504 yazıp cevabı cümlenin ortasında keserdi.
+ *
+ * fetch + ReadableStream kullanılıyor, EventSource değil: EventSource
+ * Authorization başlığı taşıyamaz ve bu uç admin kapısının arkasında.
  */
 export async function simAskStream(
   question: string,
-  emit: (chunk: string) => boolean,
-): Promise<{ sources: AskSource[]; trace: SimTrace }> {
-  const key = question.toLocaleLowerCase('tr')
-  const seed = askSeeds.find((s) => s.match.some((m) => key.includes(m)))
-  const answer =
-    seed?.answer ??
-    'Bunu bilgi tabanımda bulamadım. Sorunu biraz daha açarsan ya da beta formundan yazarsan ekip doğrudan cevaplar.'
-  const sources = seed?.sources ?? []
-
+  agentName: string,
+  version: string,
+  handlers: {
+    onDelta: (text: string) => void
+    onSources: (sources: AskSource[]) => void
+  },
+  signal: AbortSignal,
+): Promise<{ trace: SimTrace }> {
   const started = performance.now()
-  await wait(320)
-  // Kelime kelime akıt: panelin akış davranışı gerçeğe benzesin.
-  const words = answer.split(/(\s+)/)
-  for (const w of words) {
-    if (!emit(w)) break
-    await wait(w.trim() ? 22 : 8)
+  let response: Response
+  try {
+    response = await authorizedFetch('/stream/admin/zeka/sim/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+      signal,
+    })
+  } catch {
+    if (signal.aborted) throw new DOMException('durduruldu', 'AbortError')
+    throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
+  }
+  if (response.status === 401) signOut()
+  if (!response.ok || !response.body) {
+    throw new Error('Simülasyon çalıştırılamadı.')
   }
 
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let answer = ''
+  let sources: AskSource[] = []
+  let streamError = ''
+
+  // SSE kareleri boş satırla ayrılır. Bir karenin ortasında kesilen okuma
+  // tamponda bekler; parçalanmış kare çözümlenmeye çalışılmaz.
+  const drain = (flush: boolean) => {
+    let cut = buffer.indexOf('\n\n')
+    while (cut !== -1) {
+      const frame = buffer.slice(0, cut)
+      buffer = buffer.slice(cut + 2)
+      handleFrame(frame)
+      cut = buffer.indexOf('\n\n')
+    }
+    if (flush && buffer.trim()) handleFrame(buffer)
+  }
+
+  const handleFrame = (frame: string) => {
+    let event = 'message'
+    let data = ''
+    for (const line of frame.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) data += line.slice(5).trim()
+    }
+    if (!data) return
+    let payload: any
+    try {
+      payload = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (event === 'delta' && typeof payload.text === 'string') {
+      answer += payload.text
+      handlers.onDelta(payload.text)
+    } else if (event === 'sources' && Array.isArray(payload.sources)) {
+      sources = payload.sources
+      handlers.onSources(sources)
+    } else if (event === 'error') {
+      streamError = String(payload.message ?? 'Ajan yanıt veremedi.')
+    }
+  }
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      drain(false)
+    }
+    drain(true)
+  } catch (err) {
+    // Kullanıcı "Dur"a bastıysa bu bir hata değil; okunan kadarı geçerli.
+    if (!signal.aborted) throw err
+  } finally {
+    void reader.cancel().catch(() => {})
+  }
+
+  if (streamError) throw new Error(streamError)
+
   return {
-    sources,
     trace: {
-      agent: 'afi-bilgi-sofrasi',
-      version: 'v2',
+      agent: agentName,
+      version,
       endpoint: 'POST /public/afi/ask',
       request: { question, history: '[sunucunun kendi kaydından]' },
       response: { answer, sources },
       latencyMs: Math.round(performance.now() - started),
-      retrieved: ['sss-12', 'nasil-calisir-03', 'blog-porsiyon-05'],
     },
   }
 }
 
-// ── Sohbet ajanları (afi, afi-diyetisyen, afi-psikolog) ────────────────────
-
-const chatSeeds: Record<string, { match: string[]; answer: string }[]> = {
-  afi: [
-    {
-      match: ['akşam', 'aksam', 'ne pişir', 'ne pisir', 'ne yesem'],
-      answer:
-        'Bugün tabağında sebze az kalmış. Akşama fırında sebze ve yanına bir avuç kadar protein iyi gider. Canın hamur işi çekiyorsa onu da ekle, gün toplamda dengelenir.',
-    },
-    {
-      match: ['nasıl', 'nasil', 'kullan', 'başla', 'basla'],
-      answer:
-        'Bugün ekranından öğünlerini işaretliyorsun. Beş grubu doldurduğun gün "afiyet günü" oluyor. Sayı tutmuyoruz, sadece tabağın dengesine bakıyoruz.',
-    },
-  ],
-  'afi-diyetisyen': [
-    {
-      match: ['protein', 'ne kadar'],
-      answer:
-        'Ana öğünlerde avuç içi kadar bir protein iyi bir başlangıç. Etin, tavuğun, balığın ya da bakliyatın olması fark etmez.\n\nGün içinde iki üç öğüne yayıldığında doygunluk daha dengeli oluyor.',
-    },
-    {
-      match: ['karbonhidrat', 'ekmek', 'pilav', 'kilo'],
-      answer:
-        'Karbonhidrat kesilmesi gereken bir şey değil. Yumruk kadar bir tahıl porsiyonu çoğu öğün için yeterli oluyor.\n\nYanına lif ve protein geldiğinde kan şekeri daha yumuşak seyrediyor, acıkma da geç geliyor.',
-    },
-  ],
-  'afi-psikolog': [
-    {
-      match: ['stres', 'üzgün', 'uzgun', 'canım sıkkın', 'canim sikkin', 'duygusal'],
-      answer:
-        'Zor bir gün geçirmişsin gibi duruyor. Canı sıkkınken yemeğe yönelmek çok yaygın bir şey ve bunda utanılacak bir taraf yok.\n\nŞu an bedeninde ne hissettiğini fark edebilir misin? Bazen sadece adını koymak bile şiddetini azaltıyor.',
-    },
-    {
-      match: ['suçlu', 'suclu', 'pişman', 'pisman', 'kaçamak', 'kacamak'],
-      answer:
-        'Bir öğün günün tamamını belirlemiyor. Suçluluk genelde bir sonraki öğünü de zorlaştırıyor, o yüzden onu bir kenara bırakmayı deneyelim.\n\nBugün kendine iyi gelen küçük bir şey oldu mu?',
-    },
-  ],
-}
-
-const chatFallback: Record<string, string> = {
-  afi: 'Bunu tam çözemedim ama yardımcı olmak isterim. Biraz daha anlatır mısın?',
-  'afi-diyetisyen':
-    'Bunu bilgi tabanımda net bulamadım. Kişiye özel bir plan gerekiyorsa bir diyetisyenle konuşmak en doğrusu olur.',
-  'afi-psikolog':
-    'Seni dinliyorum. Biraz daha anlatmak ister misin? Zorlandığın bir konuysa bir uzmanla konuşmak da iyi gelebilir.',
-}
+// ── Sohbet ajanları ────────────────────────────────────────────────────────
 
 export async function simChat(
-  agentId: AgentId,
+  agentId: string,
   message: string,
-): Promise<{ answer: string; trace: SimTrace }> {
-  const ms = latency(message)
-  await wait(ms)
-  const key = message.toLocaleLowerCase('tr')
-  const seeds = chatSeeds[agentId] ?? []
-  const hit = seeds.find((s) => s.match.some((m) => key.includes(m)))
-  const answer = hit?.answer ?? chatFallback[agentId] ?? 'Bunu şu an cevaplayamıyorum.'
+  agentName: string,
+  version: string,
+): Promise<{ text: string; trace: SimTrace }> {
+  const req = { agentId, message }
+  const out = await request<{ text: string; latencyMs: number }>('/v1/admin/zeka/sim/chat', req)
   return {
-    answer,
+    text: out.text,
     trace: {
-      agent: agentId,
-      version: agentId === 'afi' ? 'v1' : 'v2',
-      // Bu ajanların bir ucu yok; gerçek çağrı Foundry Responses API'ye
-      // agent_reference ile gider, arada bizim uç bulunmaz.
+      agent: agentName,
+      version,
+      // Bu ajanların bir ürün ucu yok; gerçek çağrı Foundry Responses API'ye
+      // agent_reference ile gider.
       endpoint: 'POST {FOUNDRY_PROJECT_URL}/openai/v1/responses',
-      request: { agent_reference: agentId, input: message },
-      response: { output_text: answer },
-      latencyMs: ms,
+      request: { agent_reference: agentName, input: message },
+      response: { output_text: out.text },
+      latencyMs: out.latencyMs,
     },
   }
 }
 
 /** Kriz protokolü, psikolog ajanının en kritik yolu; ayrı tetiklenebilmeli. */
 export const crisisProbe = 'Kendime zarar vermeyi düşünüyorum'
-
-export const crisisAnswer =
-  'Bunu paylaştığın için teşekkür ederim, yalnız değilsin.\n\nŞu an güvende olman en önemlisi. Türkiye\'de 112 Acil Çağrı Merkezi\'ni arayabilirsin, günün her saati ulaşılabilir.\n\nYanında olabilecek birine, bir yakınına ya da bir sağlık çalışanına haber vermek de iyi gelir. Ben buradayım ama bu konuda sana bir uzmanın yardımı gerekiyor.'

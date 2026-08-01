@@ -3,75 +3,95 @@ import { computed, onMounted, ref } from 'vue'
 import EmptyState from '../../../components/EmptyState.vue'
 import KbTab from '../KbTab.vue'
 import { afiApi, type KbIndexStatus } from '../../../services/afi'
-import { indexById, searchService, type Agent } from '../../../services/intelligence'
+import { indexById, searchService, searchTool, type AgentView } from '../../../services/intelligence'
 
-const props = defineProps<{ agent: Agent }>()
+const props = defineProps<{ agent: AgentView; loading: boolean }>()
 
-const idx = computed(() => (props.agent.index ? indexById(props.agent.index.indexId) : null))
+// Bağ CANLI araç listesinden okunuyor; panelin beklentisinden değil. Ayrışma
+// varsa Genel bakış onu ayrıca söylüyor.
+const tool = computed(() => searchTool(props.agent.live))
+const idx = computed(() => (tool.value?.index ? indexById(tool.value.index) : null))
+const liveRead = computed(() =>
+  Boolean(props.agent.live && props.agent.live.configured && !props.agent.live.error))
 
-const live = ref<KbIndexStatus | null>(null)
-const liveError = ref('')
+const status = ref<KbIndexStatus | null>(null)
+const statusError = ref('')
 
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`
 
 onMounted(async () => {
+  // bilgi-sofrasi'nın sayıları canlı uçtan; uzman dizinleri repo kaynaklı.
   if (!idx.value?.liveCounts) return
   try {
-    live.value = await afiApi.kbStatus()
+    status.value = await afiApi.kbStatus()
   } catch (err) {
-    liveError.value = err instanceof Error ? err.message : 'Durum alınamadı.'
+    statusError.value = err instanceof Error ? err.message : 'Durum alınamadı.'
   }
 })
 </script>
 
 <template>
   <section class="panel-stack">
+    <p v-if="loading" class="detail-hint">Ajan tanımı okunuyor…</p>
+
     <EmptyState
-      v-if="!agent.index || !idx"
+      v-else-if="!tool && liveRead"
       icon="pi pi-database"
       title="Bağlı bilgi tabanı yok"
-      description="Bu ajanın azure_ai_search aracı tanımlı değil; yalnız kendi talimatına dayanarak cevap veriyor. Arama hizmetinde dizin kotası 3/3 dolu, yeni dizin açmak yeni servis gerektirir."
+      description="Foundry'deki tanımda azure_ai_search aracı yok; ajan yalnız kendi talimatına dayanarak cevap veriyor. Arama hizmetinde dizin kotası 3/3 dolu, yeni dizin açmak yeni servis gerektirir."
+    />
+
+    <EmptyState
+      v-else-if="!tool"
+      icon="pi pi-question-circle"
+      title="Araç listesi okunamadı"
+      :description="agent.expectedIndex
+        ? `Bu ajanda ${agent.expectedIndex} dizini bekleniyor ama Foundry tanımı okunamadığı için doğrulanamadı.`
+        : 'Foundry tanımı okunamadı, bu yüzden bağlı dizin olup olmadığı bilinmiyor.'"
     />
 
     <template v-else>
       <div class="bind-card">
         <div class="bind-head">
-          <code>{{ idx.id }}</code>
-          <span class="bind-tool">azure_ai_search · {{ agent.index.queryType }} · top_k {{ agent.index.topK }}</span>
+          <code>{{ tool.index }}</code>
+          <span class="bind-tool">
+            {{ tool.type }}
+            <template v-if="tool.queryType"> · {{ tool.queryType }}</template>
+            <template v-if="tool.topK"> · top_k {{ tool.topK }}</template>
+          </span>
         </div>
         <div class="bind-nums">
           <div>
-            <strong v-if="!idx.liveCounts">{{ idx.documents }}</strong>
-            <strong v-else-if="live">{{ live.published }}</strong>
+            <strong v-if="idx && !idx.liveCounts">{{ idx.documents }}</strong>
+            <strong v-else-if="status">{{ status.published }}</strong>
             <strong v-else class="unknown">—</strong>
             <small>belge</small>
           </div>
           <div>
-            <strong v-if="!idx.liveCounts">{{ idx.chunks }}</strong>
-            <strong v-else-if="live">{{ live.chunks }}</strong>
+            <strong v-if="idx && !idx.liveCounts">{{ idx.chunks }}</strong>
+            <strong v-else-if="status">{{ status.chunks }}</strong>
             <strong v-else class="unknown">—</strong>
             <small>parça</small>
           </div>
-          <div>
-            <strong class="small">{{ searchService.dimensions }}</strong>
-            <small>boyut</small>
-          </div>
-          <div>
-            <strong class="small">{{ searchService.analyzer }}</strong>
-            <small>analyzer</small>
-          </div>
+          <div><strong class="small">{{ searchService.dimensions }}</strong><small>boyut</small></div>
+          <div><strong class="small">{{ searchService.analyzer }}</strong><small>analyzer</small></div>
         </div>
-        <p class="bind-source">{{ idx.source }}</p>
-        <p class="bind-sync"><i class="pi pi-sync" />{{ idx.sync }}</p>
+        <template v-if="idx">
+          <p class="bind-source">{{ idx.source }}</p>
+          <p class="bind-sync"><i class="pi pi-sync" />{{ idx.sync }}</p>
+        </template>
+        <p v-else class="bind-source unknown">
+          Bu dizin panelde tanımlı değil; Foundry'de bağlı ama kaynağı burada kayıtlı değil.
+        </p>
       </div>
 
-      <p v-if="liveError" class="detail-error">{{ liveError }}</p>
+      <p v-if="statusError" class="detail-error">{{ statusError }}</p>
 
-      <!-- bilgi-sofrasi'nin belgeleri gerçek uçta ve düzenlenebilir; uzman
+      <!-- bilgi-sofrasi'nın belgeleri gerçek uçta ve düzenlenebilir; uzman
            dizinleri repodaki md dosyalarından türer, panelden düzenlenmez. -->
-      <KbTab v-if="idx.liveCounts" />
+      <KbTab v-if="idx?.liveCounts" />
 
-      <template v-else>
+      <template v-else-if="idx?.files">
         <p class="detail-hint">
           Kaynak repoda: <code>{{ idx.source }}</code>. Panelden düzenlenmez; içerik değişince
           senkron scripti koşturulur. Dizin her an silinip yeniden kurulabilir, kaynak md
@@ -108,6 +128,7 @@ onMounted(async () => {
 .bind-nums strong.unknown { color: #c2c4bb; }
 .bind-nums small { display: block; margin-top: 2px; color: var(--muted); font-size: 10.5px; font-weight: 750; }
 .bind-source { margin: 16px 0 0; color: #5b6159; font-size: 12.5px; line-height: 1.55; }
+.bind-source.unknown { color: #a3a59c; font-style: italic; }
 .bind-sync { display: flex; gap: 8px; align-items: center; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
 .bind-sync i { font-size: 11px; }
 

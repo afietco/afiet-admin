@@ -3,16 +3,18 @@ import { nextTick, ref } from 'vue'
 import Button from 'primevue/button'
 import PhoneFrame from './PhoneFrame.vue'
 import TraceBox from './TraceBox.vue'
-import { mockRetrieval, type Agent, type RetrievedChunk } from '../../../services/intelligence'
-import { crisisAnswer, crisisProbe, simChat, type SimTrace } from '../../../services/intelligenceSim'
+import type { AgentView } from '../../../services/intelligence'
+import { crisisProbe, simChat, type SimTrace } from '../../../services/intelligenceSim'
 
-const props = defineProps<{ agent: Agent }>()
+const props = defineProps<{ agent: AgentView; agentName: string; version: string }>()
 
 /**
- * Sohbet ajanlarının simülasyonu. Bu üç ajanın uygulamada bir yüzü YOK; kart
- * bunu saklamıyor, "olsaydı böyle görünürdü" diyor. Bilgi tabanı bağlıysa
- * çekilen parçalar da gösteriliyor: uzman ajanlarda asıl merak edilen, cevabın
- * hangi belgeye dayandığı.
+ * Sohbet ajanlarının simülasyonu. Bu üç ajanın uygulamada bir yüzü YOK; ekran
+ * bunu saklamıyor, "olsaydı böyle görünürdü" diyor.
+ *
+ * Ajan adı gövdeye YAZILMAZ: sunucuya kimlik gider, ad orada envanterden
+ * çözülür. Panelin ad göndermesi, panele erişen birinin anahtarımızı
+ * projedeki herhangi bir ajana yöneltmesi demek olurdu.
  */
 
 type Turn = { role: 'sen' | 'afi'; text: string }
@@ -20,21 +22,19 @@ type Turn = { role: 'sen' | 'afi'; text: string }
 const turns = ref<Turn[]>([])
 const draft = ref('')
 const busy = ref(false)
+const error = ref('')
 const trace = ref<SimTrace | null>(null)
-const retrieved = ref<RetrievedChunk[]>([])
 const chatEl = ref<HTMLElement | null>(null)
-
-// Sohbet kutusu kendi içinde kayıyor; yeni mesaj gelince aşağı inmezse cevap
-// görünmeyen alanda kalır. Uygulamadaki sheet de böyle davranıyor.
-async function scrollToLatest() {
-  await nextTick()
-  if (chatEl.value) chatEl.value.scrollTop = chatEl.value.scrollHeight
-}
 
 const starters: Record<string, string[]> = {
   afi: ['Akşama ne pişirsem?', 'Bu uygulama nasıl çalışıyor?'],
   'afi-diyetisyen': ['Günde ne kadar protein almalıyım?', 'Ekmek yemeyi bırakmalı mıyım?'],
   'afi-psikolog': ['Canım sıkkınken çok yiyorum', 'Dün kaçamak yaptım, kendimi suçlu hissediyorum'],
+}
+
+async function scrollToLatest() {
+  await nextTick()
+  if (chatEl.value) chatEl.value.scrollTop = chatEl.value.scrollHeight
 }
 
 async function send(text: string) {
@@ -43,33 +43,15 @@ async function send(text: string) {
   turns.value.push({ role: 'sen', text: q })
   draft.value = ''
   busy.value = true
+  error.value = ''
   void scrollToLatest()
 
-  if (props.agent.index) {
-    retrieved.value = mockRetrieval(props.agent.index.indexId, q, props.agent.index.topK)
-  }
-
   try {
-    // Kriz yolu ajanın en kritik davranışı; seed'lerle karışmasın diye ayrı.
-    if (q === crisisProbe) {
-      await new Promise((r) => setTimeout(r, 700))
-      turns.value.push({ role: 'afi', text: crisisAnswer })
-      trace.value = {
-        agent: props.agent.id,
-        version: props.agent.version,
-        endpoint: 'POST {FOUNDRY_PROJECT_URL}/openai/v1/responses',
-        request: { agent_reference: props.agent.id, input: q },
-        response: { output_text: crisisAnswer, protocol: 'kriz-5-adim' },
-        latencyMs: 700,
-      }
-    } else {
-      const out = await simChat(props.agent.id, q)
-      turns.value.push({ role: 'afi', text: out.answer })
-      trace.value = {
-        ...out.trace,
-        retrieved: retrieved.value.length ? retrieved.value.map((c) => c.id) : undefined,
-      }
-    }
+    const out = await simChat(props.agent.id, q, props.agentName, props.version)
+    turns.value.push({ role: 'afi', text: out.text })
+    trace.value = out.trace
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Tur tamamlanamadı.'
   } finally {
     busy.value = false
     void scrollToLatest()
@@ -79,7 +61,7 @@ async function send(text: string) {
 function reset() {
   turns.value = []
   trace.value = null
-  retrieved.value = []
+  error.value = ''
 }
 
 const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
@@ -91,8 +73,9 @@ const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
       <div v-if="agent.wiring === 'unwired'" class="unwired-note">
         <i class="pi pi-info-circle" />
         <p>
-          Bu ajanın uygulamada bir yüzü yok. Aşağıdaki sohbet, ajan bir ekrana bağlansaydı nasıl
-          davranacağını gösterir; birebir kopyalanacak mevcut bir arayüz henüz yok.
+          Bu ajanın uygulamada bir yüzü yok. Aşağıdaki sohbet gerçek ajanı çağırır ama bir ekrana
+          bağlansaydı nasıl davranacağını gösterir; birebir kopyalanacak mevcut bir arayüz henüz
+          yok.
         </p>
       </div>
 
@@ -111,25 +94,28 @@ const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
           <button type="button" class="crisis" :disabled="busy" @click="send(crisisProbe)">
             {{ crisisProbe }}
           </button>
-          <small>Ajanın en kritik yolu: yönlendirme 112 üzerinden, teşhis dili yok.</small>
+          <small>
+            Ajanın en kritik yolu. Cevapta 112 yönlendirmesi olmalı ve teşhis dili olmamalı;
+            sürüm değiştirirken önce burası denenmeli.
+          </small>
         </template>
 
         <Button label="Sohbeti sıfırla" icon="pi pi-refresh" text size="small" @click="reset" />
       </div>
 
-      <div v-if="agent.index" class="retrieval-card">
-        <h4>
-          Çekilen parçalar
-          <span>{{ agent.index.indexId }} · top_k {{ agent.index.topK }}</span>
-        </h4>
-        <p v-if="!retrieved.length" class="retrieval-idle">Bir soru sor, arama sonucu burada görünsün.</p>
-        <ol v-else>
-          <li v-for="c in retrieved" :key="c.id">
-            <code>{{ c.id }}</code>
-            <span class="chunk-title">{{ c.title }}</span>
-            <span class="chunk-score">{{ c.score.toFixed(2) }}</span>
+      <div v-if="agent.live?.tools?.length" class="tool-card">
+        <h4>Bağlı araçlar</h4>
+        <ul>
+          <li v-for="(t, i) in agent.live.tools" :key="i">
+            <code>{{ t.type }}</code>
+            <span v-if="t.index" class="tool-index">{{ t.index }}</span>
+            <span v-if="t.topK" class="tool-topk">top_k {{ t.topK }}</span>
           </li>
-        </ol>
+        </ul>
+        <p class="tool-note">
+          Çekilen parçalar Foundry'nin içinde kalıyor; Responses API onları yanıtla birlikte
+          dönmüyor, o yüzden burada listelenemiyor.
+        </p>
       </div>
     </div>
 
@@ -150,6 +136,11 @@ const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
           </div>
 
           <div v-if="busy" class="msg afi typing"><span /><span /><span /></div>
+
+          <div v-if="error" class="sim-error">
+            <i class="pi pi-exclamation-triangle" />
+            <p>{{ error }}</p>
+          </div>
         </div>
 
         <form class="composer" @submit.prevent="send(draft)">
@@ -186,15 +177,14 @@ const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
 .starter-card > button.crisis { border-color: #ecd5cf; background: #fdf5f3; color: #7a4437; }
 .starter-card small { color: var(--muted); font-size: 10.5px; line-height: 1.5; }
 
-.retrieval-card { padding: 17px 19px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
-.retrieval-card h4 { display: grid; gap: 3px; margin: 0 0 11px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
-.retrieval-card h4 span { color: #a3a59c; font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-.retrieval-idle { margin: 0; color: #a3a59c; font-size: 12px; font-style: italic; }
-.retrieval-card ol { margin: 0; padding: 0; display: grid; gap: 6px; list-style: none; }
-.retrieval-card li { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 9px; align-items: baseline; }
-.retrieval-card code { color: var(--green-dark); font-size: 10.5px; font-weight: 750; }
-.chunk-title { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
-.chunk-score { color: #a3a59c; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.tool-card { padding: 17px 19px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
+.tool-card h4 { margin: 0 0 11px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+.tool-card ul { margin: 0; padding: 0; display: grid; gap: 7px; list-style: none; }
+.tool-card li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.tool-card code { color: var(--green-dark); font-size: 11.5px; font-weight: 800; }
+.tool-index { color: var(--ink); font-size: 12px; font-weight: 750; }
+.tool-topk { color: #a3a59c; font-size: 10.5px; }
+.tool-note { margin: 11px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 
 .sim-stage { display: grid; gap: 13px; }
 
@@ -215,6 +205,10 @@ const paragraphs = (text: string) => text.split(/\n{2,}/).filter(Boolean)
 .typing span:nth-child(3) { animation-delay: .36s; }
 @keyframes blink { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .typing span { animation: none; } }
+
+.sim-error { display: flex; gap: 9px; align-items: flex-start; padding: 11px 13px; border-radius: 12px; background: #fdf5f3; }
+.sim-error i { margin-top: 2px; color: var(--coral); font-size: 12px; }
+.sim-error p { margin: 0; color: #7a4437; font-size: 12px; line-height: 1.55; }
 
 .composer { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 8px; margin-top: 14px; }
 .composer input { padding: 11px 13px; border: 1px solid var(--line); border-radius: 13px; background: var(--canvas); font-size: 12.5px; }

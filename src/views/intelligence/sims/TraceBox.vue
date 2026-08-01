@@ -23,8 +23,9 @@ const pretty = (v: unknown) => JSON.stringify(v, null, 2)
     <div v-if="open" class="trace-body">
       <div class="trace-meta">
         <span><small>ajan</small>{{ trace.agent }}</span>
-        <span><small>sürüm</small>{{ trace.version }}</span>
-        <span v-if="trace.retrieved"><small>çekilen parça</small>{{ trace.retrieved.join(', ') }}</span>
+        <!-- Çekilen parçalar bilinçli olarak gösterilmiyor: Responses API
+             arama sonuçlarını yanıtla birlikte dönmüyor. -->
+        <span v-if="trace.version"><small>sürüm</small>v{{ trace.version }}</span>
       </div>
       <div class="trace-cols">
         <div>

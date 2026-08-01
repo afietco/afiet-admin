@@ -1,36 +1,77 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Tag from 'primevue/tag'
-import { agents, effortLabels, indexById, searchService, wiringMeta, MOCK } from '../../services/intelligence'
+import {
+  agentCopy, effortLabel, mergeAgents, searchService, searchTool, wiringMeta, zekaApi,
+  type AgentView,
+} from '../../services/intelligence'
 
 // Ajanlar bağlı olanlar önce gelecek şekilde sıralanıyor: panelin ilk ekranı
 // "şu an üründe ne çalışıyor" sorusunu cevaplamalı, Foundry envanterini değil.
 const order = { live: 0, partial: 1, unwired: 2 }
-const sorted = computed(() => [...agents].sort((a, b) => order[a.wiring] - order[b.wiring]))
+
+const rows = ref<AgentView[]>(mergeAgents([]))
+const loading = ref(true)
+const configured = ref(true)
+const error = ref('')
+
+const sorted = computed(() => [...rows.value].sort((a, b) => order[a.wiring] - order[b.wiring]))
 
 const counts = computed(() => ({
-  live: agents.filter((a) => a.wiring === 'live').length,
-  partial: agents.filter((a) => a.wiring === 'partial').length,
-  unwired: agents.filter((a) => a.wiring === 'unwired').length,
+  live: agentCopy.filter((a) => a.wiring === 'live').length,
+  unwired: agentCopy.filter((a) => a.wiring === 'unwired').length,
 }))
 
 const severity = (w: keyof typeof order) =>
   wiringMeta[w].severity === 'success' ? 'success' : wiringMeta[w].severity === 'warn' ? 'warn' : 'info'
+
+/** Bağlı dizin: canlı araçtan; okunamadıysa beklenen dizin ayrı dille. */
+function indexCell(agent: AgentView) {
+  const tool = searchTool(agent.live)
+  if (tool?.index) return { text: tool.index, unknown: false }
+  if (agent.live && !agent.live.error && agent.live.configured) {
+    // Tanım okundu ve araç yok: gerçekten dizinsiz.
+    return { text: 'yok', unknown: true }
+  }
+  if (agent.expectedIndex) return { text: `${agent.expectedIndex} (beklenen)`, unknown: true }
+  return { text: 'okunmadı', unknown: true }
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await zekaApi.agents()
+    rows.value = mergeAgents(data.items ?? [])
+    configured.value = data.configured
+  } catch (err) {
+    // Canlı veri gelmese de kartlar durmalı: ürün kopyası panelde yaşıyor.
+    rows.value = mergeAgents([])
+    error.value = err instanceof Error ? err.message : 'Ajan listesi alınamadı.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
 </script>
 
 <template>
   <section class="zeka-tab">
-    <div v-if="MOCK" class="mock-banner">
+    <div v-if="!configured && !loading" class="notice warn">
       <i class="pi pi-info-circle" />
       <p>
-        Ajan üstverisi şu an <strong>elle tutuluyor</strong>. Model, sürüm ve araç bağları koddan
-        doğrulandı; effort ve sistem promptu yalnız Foundry'de duruyor ve panele taşıyacak bir uç
-        henüz yok. Teyit edilmemiş alanlar boş bırakıldı, uydurulmadı.
+        Bu ortamda Foundry anahtarı yapılandırılmamış. Ajanların model, sürüm, effort ve araç
+        bilgileri okunamıyor; aşağıdaki kartlar yalnız ürün tarafındaki bilgiyi gösteriyor.
       </p>
+    </div>
+    <div v-if="error" class="notice error">
+      <i class="pi pi-exclamation-triangle" />
+      <p>{{ error }}</p>
     </div>
 
     <div class="zeka-stats">
-      <div class="zeka-stat"><small>Ajan</small><strong>{{ agents.length }}</strong></div>
+      <div class="zeka-stat"><small>Ajan</small><strong>{{ agentCopy.length }}</strong></div>
       <div class="zeka-stat"><small>Üründe canlı</small><strong>{{ counts.live }}</strong></div>
       <div class="zeka-stat">
         <small>Bağlı değil</small><strong :class="{ idle: counts.unwired > 0 }">{{ counts.unwired }}</strong>
@@ -59,7 +100,7 @@ const severity = (w: keyof typeof order) =>
           <div class="agent-glyph"><i class="pi pi-sparkles" /></div>
           <div class="agent-ident">
             <strong>{{ agent.label }}</strong>
-            <code>{{ agent.name }}</code>
+            <code>{{ agent.live?.name || agent.id }}</code>
           </div>
           <Tag :value="wiringMeta[agent.wiring].label" :severity="severity(agent.wiring)" />
         </div>
@@ -69,23 +110,31 @@ const severity = (w: keyof typeof order) =>
         <dl class="agent-facts">
           <div>
             <dt>Sürüm</dt>
-            <dd>
-              {{ agent.version }}
-              <span v-if="agent.versionPin === 'pinned'" class="pin" title="Sürüm sabitli">
+            <dd v-if="loading" class="loading">···</dd>
+            <dd v-else-if="agent.live?.version">
+              v{{ agent.live.version }}
+              <span v-if="agent.live.pinnedVersion" class="pin" title="Sürüm sabitli">
                 <i class="pi pi-lock" />
               </span>
             </dd>
+            <dd v-else class="unknown">okunmadı</dd>
           </div>
-          <div><dt>Model</dt><dd>{{ agent.model }}</dd></div>
+          <div>
+            <dt>Model</dt>
+            <dd v-if="loading" class="loading">···</dd>
+            <dd v-else-if="agent.live?.model">{{ agent.live.model }}</dd>
+            <dd v-else class="unknown">okunmadı</dd>
+          </div>
           <div>
             <dt>Effort</dt>
-            <dd v-if="agent.effort">{{ effortLabels[agent.effort] }}</dd>
+            <dd v-if="loading" class="loading">···</dd>
+            <dd v-else-if="agent.live?.effort">{{ effortLabel(agent.live.effort) }}</dd>
             <dd v-else class="unknown">okunmadı</dd>
           </div>
           <div>
             <dt>Bilgi tabanı</dt>
-            <dd v-if="agent.index">{{ indexById(agent.index.indexId)?.id }}</dd>
-            <dd v-else class="unknown">yok</dd>
+            <dd v-if="loading" class="loading">···</dd>
+            <dd v-else :class="{ unknown: indexCell(agent).unknown }">{{ indexCell(agent).text }}</dd>
           </div>
         </dl>
 
@@ -101,12 +150,13 @@ const severity = (w: keyof typeof order) =>
 <style scoped>
 .zeka-tab { display: grid; gap: 18px; }
 
-.mock-banner {
-  display: flex; gap: 11px; align-items: flex-start;
-  padding: 13px 15px; border: 1px solid #e8d9b4; border-radius: 14px; background: #fdf7e8;
-}
-.mock-banner i { margin-top: 2px; color: var(--amber); font-size: 14px; }
-.mock-banner p { margin: 0; max-width: 88ch; color: #6b5a34; font-size: 12.5px; line-height: 1.55; }
+.notice { display: flex; gap: 11px; align-items: flex-start; padding: 13px 15px; border-radius: 14px; }
+.notice p { margin: 0; max-width: 88ch; font-size: 12.5px; line-height: 1.55; }
+.notice i { margin-top: 2px; font-size: 14px; }
+.notice.warn { border: 1px solid #e8d9b4; background: #fdf7e8; color: #6b5a34; }
+.notice.warn i { color: var(--amber); }
+.notice.error { border: 1px solid #f0dcd7; background: #fdf5f3; color: #7a4437; }
+.notice.error i { color: var(--coral); }
 
 .zeka-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .zeka-stat { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
@@ -148,9 +198,10 @@ const severity = (w: keyof typeof order) =>
 .agent-facts dt { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
 .agent-facts dd {
   margin: 2px 0 0; display: flex; gap: 5px; align-items: center;
-  color: var(--ink); font-size: 12.5px; font-weight: 750;
+  color: var(--ink); font-size: 12.5px; font-weight: 750; overflow-wrap: anywhere;
 }
 .agent-facts dd.unknown { color: #a3a59c; font-weight: 650; font-style: italic; }
+.agent-facts dd.loading { color: #c2c4bb; letter-spacing: .1em; }
 .pin i { color: var(--green); font-size: 9px; }
 
 .agent-foot {

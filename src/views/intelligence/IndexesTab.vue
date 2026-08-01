@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import Tag from 'primevue/tag'
 import KbTab from './KbTab.vue'
 import { afiApi, type KbIndexStatus } from '../../services/afi'
-import { agentById, indexes, searchService, type IndexId } from '../../services/intelligence'
+import { copyById, indexes, searchService, type IndexId } from '../../services/intelligence'
 
 /**
  * Üç Azure AI Search dizini. İkisinin kaynağı repodaki md dosyaları ve elle
@@ -99,7 +99,7 @@ onMounted(async () => {
         </div>
         <span class="index-agents">
           <template v-for="(a, i) in idx.agents" :key="a">
-            <span v-if="i > 0">, </span>{{ agentById(a)?.label }}
+            <span v-if="i > 0">, </span>{{ copyById(a)?.label }}
           </template>
         </span>
       </button>
