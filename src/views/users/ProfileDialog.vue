@@ -11,7 +11,7 @@ const props = defineProps<{ visible: boolean; profile: UserProfile; saving: bool
 const emit = defineEmits<{ 'update:visible': [boolean]; save: [UserProfilePatch] }>()
 
 const form = reactive({
-  displayName: '', emoji: '', username: '', email: '',
+  displayName: '', emoji: '', email: '',
   sex: null as string | null, birthDate: '', heightCm: null as number | null,
   activityLevel: null as string | null,
 })
@@ -28,8 +28,6 @@ const activityOptions = [
 
 // Kullanıcı adı sosyal katmanın kimliği: benzersizliği sunucu kontrol eder,
 // biçimi burada. Boş bırakmak "kullanıcı adı yok" demektir, geçerlidir.
-const usernameInvalid = computed(() =>
-  form.username.length > 0 && !/^[a-z0-9_]{3,20}$/.test(form.username))
 const emailInvalid = computed(() => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email))
 
 watch(
@@ -40,7 +38,6 @@ watch(
     Object.assign(form, {
       displayName: props.profile.displayName ?? '',
       emoji: props.profile.emoji ?? '',
-      username: props.profile.username ?? '',
       email: props.profile.email,
       sex: props.profile.sex,
       birthDate: props.profile.birthDate ?? '',
@@ -61,11 +58,10 @@ watch(
  */
 function save() {
   submitted.value = true
-  if (usernameInvalid.value || emailInvalid.value) return
+  if (emailInvalid.value) return
   const patch: UserProfilePatch = {
     displayName: form.displayName.trim(),
     emoji: form.emoji.trim(),
-    username: form.username.trim(),
     email: form.email.trim(),
     sex: form.sex ?? '',
     birthDate: form.birthDate.trim(),
@@ -93,12 +89,6 @@ function save() {
       <div class="form-field">
         <label for="edit-emoji">Emoji</label>
         <InputText id="edit-emoji" v-model="form.emoji" fluid placeholder="🥗" />
-      </div>
-      <div class="form-field">
-        <label for="edit-username">Kullanıcı adı</label>
-        <InputText id="edit-username" v-model="form.username" fluid :invalid="submitted && usernameInvalid" />
-        <small v-if="submitted && usernameInvalid" class="field-error">3-20 karakter; küçük harf, rakam, alt çizgi.</small>
-        <small v-else>Arkadaş aramasının kimliği. Boş bırakılabilir.</small>
       </div>
 
       <div class="form-field span-4">
