@@ -137,6 +137,15 @@ export type PushTrigger = {
   time: string | null
   /** ISO haftanın günü, 1 = Pazartesi. Yalnız week_closure'da dolu. */
   weekday: number | null
+  /**
+   * Ton başına gövde. Damıtıcı kişinin tonunu üretiyor, gönderim anında
+   * karşılık gelen cümle seçiliyor. Yazılmamış ton `body`'ye düşer, yani
+   * boş bırakmak "bu tetikleyicide ton ayrımı yok" demek.
+   *
+   * Metni model YAZMIYOR, aralarından SEÇİYOR: giden her cümleyi burada bir
+   * insan yazmış oluyor.
+   */
+  bodyVariants: Partial<Record<PushTone, string>>
   preferenceKey: PushPreferenceKey
   /** Bu kategoriyi açık tutan, bildirim izni vermiş kullanıcı sayısı. */
   optedIn: number
@@ -149,8 +158,22 @@ export type PushTrigger = {
 }
 
 export type PushTriggerPatch = Partial<
-  Pick<PushTrigger, 'enabled' | 'title' | 'body' | 'target' | 'time' | 'weekday'>
+  Pick<PushTrigger, 'enabled' | 'title' | 'body' | 'target' | 'time' | 'weekday' | 'bodyVariants'>
 >
+
+/**
+ * Damıtıcının üretebildiği ton kümesi. Sunucu aynı listeyi doğruluyor;
+ * dördüncü bir ton yazabilmek, hiçbir zaman seçilmeyecek bir metin yazmak
+ * olurdu.
+ */
+export const PUSH_TONES = ['sakin', 'doğrudan', 'oyunlu'] as const
+export type PushTone = (typeof PUSH_TONES)[number]
+
+export const PUSH_TONE_META: Record<PushTone, { label: string; hint: string }> = {
+  sakin: { label: 'Sakin', hint: 'Sessiz, iddiasız; teşviği yumuşak alan kişiler' },
+  'doğrudan': { label: 'Doğrudan', hint: 'Kısa ve net; süslemesiz olanı tercih edenler' },
+  oyunlu: { label: 'Oyunlu', hint: 'Hafif, esprili; oyunla ilerleyen kişiler' },
+}
 
 /** Sessiz saatler ve ana anahtar; ikisi de tüm tetikleyicileri kapsar. */
 export type PushGlobalSettings = {
