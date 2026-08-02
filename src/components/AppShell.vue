@@ -28,6 +28,7 @@ const groups = [
     items: [
       { to: '/besinler', label: 'Besin kataloğu', icon: 'pi pi-book', name: 'foods' },
       { to: '/gorevler', label: 'Görevler', icon: 'pi pi-sparkles', name: 'quests' },
+      { to: '/surum', label: 'Sürüm kapısı', icon: 'pi pi-mobile', name: 'version-gate' },
       // Ajan detayı da bu maddenin altında yaşar; alt rota adı verilmezse
       // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
       { to: '/zeka', label: 'Zeka merkezi', icon: 'pi pi-comments', name: 'intelligence', also: ['agent-detail'] },

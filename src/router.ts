@@ -13,6 +13,7 @@ const router = createRouter({
         { path: 'buyume', name: 'growth', component: () => import('./views/GrowthView.vue') },
         { path: 'besinler', name: 'foods', component: () => import('./views/foods/FoodsView.vue') },
         { path: 'gorevler', name: 'quests', component: () => import('./views/QuestsView.vue') },
+        { path: 'surum', name: 'version-gate', component: () => import('./views/release/VersionGateView.vue') },
         { path: 'kullanicilar', name: 'users', component: () => import('./views/users/UsersView.vue') },
         { path: 'kullanicilar/:userId', name: 'user-detail', component: () => import('./views/users/UserDetailView.vue') },
         { path: 'beta-basvurulari', name: 'beta', component: () => import('./views/beta/BetaView.vue') },
