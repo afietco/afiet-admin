@@ -356,6 +356,50 @@ export type UserPage = {
   order: string[]
 }
 
+// ── Sohbet üstverisi ─────────────────────────────────────────────────────────
+
+/** Bir konuşma, alıntılanmadan tarif edilmiş hali. */
+export type ChatSessionSummary = {
+  sessionId: string
+  assistant: string
+  startedAt: string
+  lastTurnAt: string
+  turns: number
+  /** Yayını ortada kesilen turlar: kişinin gördüğü kesik cevap. */
+  partialTurns: number
+  /** İki tarafın yazdığı karakter. "Açıp bıraktı" ile "bir saat kullandı"yı ayırır. */
+  chars: number
+  /** Bu oturumun ürettiği hafıza adayı. Turlar var ama bu sıfırsa çıkarıcı durmuş. */
+  candidates: number
+}
+
+export type ChatConsent = {
+  consentKey: string
+  textVersion: string
+  acceptedAt: string
+  revokedAt: string | null
+}
+
+/**
+ * Damıtıcının uygulama için ürettiği yapılandırılmış görüş. Asistanların
+ * okuduğu sayfadan ayrı: buradaki her alan kodun dallanabileceği bir şey.
+ */
+export type ProductProfile = {
+  logsAround?: string
+  skippedMeal?: string
+  motivationTone?: string
+  driftRisk?: string
+  nudge?: string
+}
+
+export type UserChat = {
+  sessions: ChatSessionSummary[] | null
+  consents: ChatConsent[] | null
+  productProfile: ProductProfile
+  /** Yürürlükteki onay metni sürümü; eskiye verilmiş onayı ayırt etmek için. */
+  currentConsentVersion: string
+}
+
 export type PageRevision = {
   revision: number
   contentMd: string
@@ -420,6 +464,15 @@ export const usersApi = {
     request<void>(`/v1/admin/users/${userId}/quests/${encodeURIComponent(key)}/complete`, {
       method: 'POST',
     }),
+
+  /**
+   * Sohbet ÜSTVERİSİ. Yazışma metni YOK ve bu bir eksik değil.
+   *
+   * Onay ekranı "cihaz değiştirsen de kaybolmasın diye saklanıyor" diyor,
+   * "ekibimiz okuyabilir" demiyor. Metni panele taşımak eklenmemiş bir
+   * özellik değil, verilmemiş bir izin.
+   */
+  chat: (userId: string) => request<UserChat>(`/v1/admin/users/${userId}/chat`),
 
   /** Kişi sayfası: damıtıcının yazdıkları + damıtma döngüsündeki durum. */
   page: (userId: string) => request<UserPage>(`/v1/admin/users/${userId}/page`),
