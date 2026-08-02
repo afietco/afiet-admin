@@ -317,6 +317,54 @@ export const STATUS_META: Record<UserStatus, { label: string; severity: string; 
   hic: { label: 'Hiç kaydı yok', severity: 'secondary', hint: 'Profil açılmış ama tek bir kayıt bile yok' },
 }
 
+// ── Kişi sayfası ─────────────────────────────────────────────────────────────
+
+/**
+ * Damıtıcının bu kişi hakkında yazdığı bölümlerden biri.
+ *
+ * `updatedBy` cümlenin kimin sesi olduğunu söylüyor: 'agent' damıtıcı,
+ * 'staff' bir insan, 'system' tohumlama. Panelde ayırt edilmezse sayfa
+ * "sistem ne anladı" sorusunu cevaplayamaz hale gelir.
+ */
+export type PageSection = {
+  sectionKey: string
+  contentMd: string
+  revision: number
+  updatedBy: 'agent' | 'staff' | 'system'
+  updatedAt: string
+}
+
+/** Kişinin damıtma döngüsünde nerede durduğu. */
+export type PageStatus = {
+  /** null ise kuyrukta değil: son koşu temizledi ve o gün bugün bir şey olmadı. */
+  dueAt: string | null
+  /** Sıfırdan büyükse damıtıcı bu kişide özellikle geri çekiliyor. */
+  attempts: number
+  lastRunAt: string | null
+  /**
+   * Öğrenilmiş ama sayfaya işlenmemiş notlar. Kaybolmuş veri DEĞİL: bunlar
+   * asistanlara delta katmanı olarak zaten gidiyor. Sayfanın asistanların ne
+   * kadar gerisinde kaldığını söyler.
+   */
+  pendingCandidates: number
+}
+
+export type UserPage = {
+  sections: PageSection[]
+  status: PageStatus
+  /** Okuma sırası sunucudan gelir; panel kendi kopyasını tutmaz. */
+  order: string[]
+}
+
+export type PageRevision = {
+  revision: number
+  contentMd: string
+  editorType: 'agent' | 'staff' | 'system'
+  /** Yazan çağrının kimliği ya da personelin e-postası; tohumlamada boş. */
+  editorRef: string
+  createdAt: string
+}
+
 export const usersApi = {
   list: (params: { page: number; pageSize: number; query?: string }) => {
     const search = new URLSearchParams()
@@ -371,6 +419,26 @@ export const usersApi = {
   completeQuest: (userId: string, key: string) =>
     request<void>(`/v1/admin/users/${userId}/quests/${encodeURIComponent(key)}/complete`, {
       method: 'POST',
+    }),
+
+  /** Kişi sayfası: damıtıcının yazdıkları + damıtma döngüsündeki durum. */
+  page: (userId: string) => request<UserPage>(`/v1/admin/users/${userId}/page`),
+
+  pageRevisions: (userId: string, sectionKey: string) =>
+    request<{ items: PageRevision[] | null }>(
+      `/v1/admin/users/${userId}/page/sections/${encodeURIComponent(sectionKey)}/revisions`,
+    ),
+
+  /**
+   * Ekip notu, sayfanın insan yazabildiği TEK bölümü.
+   *
+   * Bölüm adı yolun sabit parçası, gövdenin alanı değil: panelin
+   * kurabileceği hiçbir istek başka bir bölüme ulaşmıyor.
+   */
+  writeTeamNote: (userId: string, contentMd: string) =>
+    request<{ sections: PageSection[] }>(`/v1/admin/users/${userId}/page/ekip-notu`, {
+      method: 'PUT',
+      body: JSON.stringify({ contentMd }),
     }),
 }
 

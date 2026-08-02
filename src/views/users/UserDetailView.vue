@@ -15,6 +15,7 @@ import HabitsTab from './HabitsTab.vue'
 import SessionsTab from './SessionsTab.vue'
 import ProgressTab from './ProgressTab.vue'
 import NotifyTab from './NotifyTab.vue'
+import PageTab from './PageTab.vue'
 import ManageTab from './ManageTab.vue'
 import ProfileDialog from './ProfileDialog.vue'
 import {
@@ -146,6 +147,7 @@ onMounted(load)
       <Tabs v-model:value="activeTab" class="seo-tabs detail-tabs">
         <TabList>
           <Tab value="profil">Profil</Tab>
+          <Tab value="sayfa">Sayfa</Tab>
           <Tab value="aliskanlik">Alışkanlıklar</Tab>
           <Tab value="oturum">Oturumlar</Tab>
           <Tab value="oyun">Oyunlaştırma</Tab>
@@ -161,6 +163,9 @@ onMounted(load)
               :status="status"
               @edit="editing = true"
             />
+          </TabPanel>
+          <TabPanel value="sayfa">
+            <PageTab v-if="activeTab === 'sayfa'" :user-id="String(route.params.userId)" />
           </TabPanel>
           <TabPanel value="aliskanlik">
             <HabitsTab v-if="activeTab === 'aliskanlik'" :detail="detail" :sources="result!.sources" />
