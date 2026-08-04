@@ -13,7 +13,7 @@ import {
   PUSH_BODY_MAX, PUSH_TITLE_MAX, pushTargetGroups, pushTargetLabel,
   type PushScreenTarget,
 } from '../../services/push'
-import type { Provenance, UserDetail } from '../../services/users'
+import { deliveryStatusLabel, type Provenance, type UserDetail } from '../../services/users'
 import { dateTime, num } from './shared'
 
 const props = defineProps<{ detail: UserDetail; sources: Record<keyof UserDetail, Provenance> }>()
@@ -201,8 +201,8 @@ onMounted(loadReach)
             <small>{{ row.kind }} · {{ dateTime(row.sentAt) }}</small>
           </div>
           <Tag
-            :value="row.status === 'sent' ? 'gitti' : 'başarısız'"
-            :severity="row.status === 'sent' ? 'success' : 'danger'"
+            :value="deliveryStatusLabel(row.status).label"
+            :severity="deliveryStatusLabel(row.status).severity"
           />
         </li>
       </ul>

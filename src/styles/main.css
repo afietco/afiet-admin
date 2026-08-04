@@ -937,7 +937,11 @@ strong.num-cell { font-size: 13px; }
 .group-list small, .device-list small, .delivery-list small, .audit-list small { display: block; margin-top: 3px; color: #8d9087; font-size: 10px; font-weight: 700; }
 .group-glyph { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px 11px 11px 3px; color: #176649; background: #dff0e7; }
 .device-list li > i { width: 22px; color: #5f7268; font-size: 16px; text-align: center; }
+/* Nokta etiketle aynı şeyi söyler: teslim edilen yeşil, yolda olan mavi,
+   kuyrukta bekleyen nötr, başarısız kırmızı. */
 .delivery-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #34d399; }
+.delivery-dot.ticketed { background: #7ba8d0; }
+.delivery-dot.pending, .delivery-dot.processing { background: #c4c7bd; }
 .delivery-dot.failed { background: #ef8a6f; }
 .audit-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #d6b14e; }
 .audit-meta { color: #a0a298; font-size: 10px; font-weight: 700; white-space: nowrap; }
