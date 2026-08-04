@@ -165,7 +165,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type AskRange = '24h' | '7d' | '30d' | '90d'
 
+/** Bir ajanın bir akıştaki toplamı. Sunucu ajan+akış kırılımıyla döner. */
+export type AICostRow = {
+  agentKey: string
+  flow: string
+  calls: number
+  errors: number
+  promptTokens: number
+  outputTokens: number
+  medianMs: number
+}
+
+export type AICostStats = {
+  days: number
+  since: string
+  rows: AICostRow[] | null
+  totals: AICostRow
+}
+
 export const afiApi = {
+  /** Model çağrılarının maliyeti ve sağlığı. days 1-90 arası. */
+  aiStats: (days: number) => request<AICostStats>(`/v1/admin/ai/stats${queryString({ days })}`),
+
   stats: (range: AskRange) => request<AskStats>(`/v1/admin/ask/stats${queryString({ range })}`),
   questions: (params: { range: AskRange; mode?: 'unanswered'; page: number; pageSize: number }) =>
     request<Page<AskQuestionGroup>>(`/v1/admin/ask/questions${queryString(params)}`),
