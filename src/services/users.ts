@@ -189,7 +189,32 @@ export type PushPreferences = {
   quietEnd: string | null
 }
 
-export type DeliveryRow = { kind: string; title: string; status: string; sentAt: string; error: string | null }
+/**
+ * One row of `push_deliveries`, which is a notification aimed at ONE device.
+ *
+ * The status set is the delivery one and it is spelled out rather than left as
+ * `string`, because `push_events` has a different set that happens to overlap:
+ * an event ends up `sent` or `failed`, a delivery never says `sent` at all.
+ * The panel used to test a delivery for `'sent'`, so every row rendered as a
+ * failure, delivered ones included, and only the dot beside it told the truth.
+ */
+export type DeliveryStatus = 'pending' | 'processing' | 'ticketed' | 'delivered' | 'failed'
+
+export type DeliveryRow = { kind: string; title: string; status: DeliveryStatus; sentAt: string; error: string | null }
+
+/** Delivery status as the panel says it. Severities are PrimeVue Tag values. */
+export const deliveryStatusLabels: Record<DeliveryStatus, { label: string; severity: string }> = {
+  pending: { label: 'kuyrukta', severity: 'secondary' },
+  processing: { label: 'kuyrukta', severity: 'secondary' },
+  ticketed: { label: 'yolda', severity: 'info' },
+  delivered: { label: 'gitti', severity: 'success' },
+  failed: { label: 'başarısız', severity: 'danger' },
+}
+
+/** Unknown status stays visible instead of rendering as a failure. */
+export function deliveryStatusLabel(status: DeliveryStatus): { label: string; severity: string } {
+  return deliveryStatusLabels[status] ?? { label: status, severity: 'secondary' }
+}
 
 export type UserSocial = { groups: GroupMembership[]; friends: number }
 export type UserNotifications = {
