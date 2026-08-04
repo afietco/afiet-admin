@@ -8,6 +8,7 @@ import TabPanel from 'primevue/tabpanel'
 import PageHeader from '../../components/PageHeader.vue'
 import AgentsTab from './AgentsTab.vue'
 import IndexesTab from './IndexesTab.vue'
+import MaliyetTab from './MaliyetTab.vue'
 import TazelemeTab from './TazelemeTab.vue'
 
 // Sekmeler v-if ile bağlı: açılmayan sekme mount olmuyor, isteğini de atmıyor.
@@ -28,11 +29,13 @@ const activeTab = ref('ajanlar')
       <TabList>
         <Tab value="ajanlar">Ajanlar</Tab>
         <Tab value="bilgi">Bilgi tabanları</Tab>
+        <Tab value="maliyet">Maliyet</Tab>
         <Tab value="tazeleme">Tazeleme</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="ajanlar"><AgentsTab v-if="activeTab === 'ajanlar'" /></TabPanel>
         <TabPanel value="bilgi"><IndexesTab v-if="activeTab === 'bilgi'" /></TabPanel>
+        <TabPanel value="maliyet"><MaliyetTab v-if="activeTab === 'maliyet'" /></TabPanel>
         <TabPanel value="tazeleme"><TazelemeTab v-if="activeTab === 'tazeleme'" /></TabPanel>
       </TabPanels>
     </Tabs>
