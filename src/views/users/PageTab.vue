@@ -268,7 +268,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page-tab { display: flex; flex-direction: column; gap: 1rem; }
+.page-tab { display: flex; flex-direction: column; gap: 1rem; padding: 22px; }
 
 .status {
   display: grid;
