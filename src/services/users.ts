@@ -1,5 +1,6 @@
 import { authorizedFetch, signOut } from './auth'
 import type { Page, User } from './admin'
+import { screenLabel } from './telemetry-labels'
 
 /**
  * Kullanıcı detayının veri sözleşmesi.
@@ -273,15 +274,6 @@ export const ACTIVITY_LABELS: Record<string, string> = {
 export const TIER_LABELS: Record<string, string> = {
   tuz: 'Tuz', nane: 'Nane', kekik: 'Kekik', sumak: 'Sumak', safran: 'Safran',
 }
-/** Mobildeki SCREEN_TOKENS ile aynı küme (afiet-mobile/src/lib/session.ts). */
-export const SCREEN_LABELS: Record<string, string> = {
-  bugun: 'Bugün', beslenme: 'Beslenme', vucudum: 'Vücudum', grubum: 'Grubum',
-  ekle: 'Öğün ekle', menum: 'Menüm', besinler: 'Besin rehberi', gorevlerim: 'Görevlerim',
-  arkadaslarim: 'Arkadaşlarım', lig: 'Lig', profil: 'Profil', hesap: 'Hesap ayarları',
-  bilgilerim: 'Bilgilerim', gorunum: 'Görünüm', veri: 'Veri', katil: 'Gruba katıl',
-  onboarding: 'Tanışma', intro: 'Karşılama', login: 'Giriş',
-}
-
 export const label = {
   meal: (key: string) => MEAL_LABELS[key] ?? key,
   group: (key: string) => GROUP_LABELS[key] ?? key,
@@ -289,7 +281,7 @@ export const label = {
   sex: (key: string | null) => (key ? SEX_LABELS[key] ?? key : '—'),
   activity: (key: string | null) => (key ? ACTIVITY_LABELS[key] ?? key : '—'),
   tier: (key: string) => TIER_LABELS[key] ?? key,
-  screen: (key: string) => SCREEN_LABELS[key] ?? key,
+  screen: screenLabel,
 }
 
 // ── Uç çağrıları ─────────────────────────────────────────────────────────────

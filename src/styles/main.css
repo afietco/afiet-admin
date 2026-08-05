@@ -300,8 +300,15 @@ a { color: inherit; }
 .event-unit { font-size: 12px; font-weight: 800; color: #9aa89f; margin-left: 2px; }
 .event-cell small { display: block; margin-top: 4px; color: #9aa89f; font-size: 10px; font-weight: 700; }
 
+/* Oturum nabzı kendi kartında yaşar; gömülü hâlin üst çizgisi orada gereksiz. */
+.session-row.pulse { border-top: 0; padding-top: 4px; }
+/* Tam genişlik Alışkanlık kartı: solda özet hücreler, sağda aktif gün dağılımı. */
+.habit-wide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 26px; align-items: start; }
+.habit-wide .dua-row { border-bottom: 0; padding-bottom: 0; }
+.habit-wide .mini-cap { margin-top: 14px; }
+
 @media (max-width: 1080px) {
-  .split-grid, .split-grid.wide-left, .triple-grid, .event-grid { grid-template-columns: 1fr; }
+  .split-grid, .split-grid.wide-left, .triple-grid, .event-grid, .habit-wide { grid-template-columns: 1fr; }
 }
 
 /* ── İçerik paneli ─────────────────────────────────────────────────────────── */
@@ -1097,6 +1104,9 @@ strong.num-cell { font-size: 13px; }
    için yazılmıştı. Kullanıcı detayında ve beta kırılımlarında satırlar cümle
    ya da özel ad taşıyor; oralarda büyük harfe dokunulmaz (BRAND.md). */
 .detail-body .src-name, .beta-blocks .src-name { text-transform: none; }
+/* Telemetri sözlüğünden gelen Türkçe etiketler yazıldığı gibi kalır:
+   capitalize "ile" > "Ile" gibi hatalı Türkçe üretir. */
+.src-list.telemetry .src-name { text-transform: none; }
 .email-cell small { display: block; margin-top: 3px; color: #8d9087; font-size: 9px; }
 /* QuestsView'daki .quest-glyph scoped; ilerleme listesi ayrı bileşende. */
 .quest-progress .quest-glyph { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px 11px 11px 3px; background: #dff0e7; font-size: 17px; line-height: 1; }
