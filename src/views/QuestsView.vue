@@ -16,8 +16,13 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 import QuestPreview from './QuestPreview.vue'
+import QuestTierPanel from './quests/QuestTierPanel.vue'
 import { adminApi, type Quest, type QuestInput } from '../services/admin'
-import { effectiveAction, questTargetLabel } from '../services/questActions'
+import { questTargetLabel } from '../services/questActions'
+import {
+  TIER_META, TIER_ORDER, countLabel, mockReach, percent, pouchLabel, tierLadder,
+  type QuestReach,
+} from './quests/questTiers'
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -99,10 +104,39 @@ const targetOptions = computed(() => [
   ...actionTargets.value.map((value) => ({ value, label: questTargetLabel(value) })),
 ])
 
-/** Satırın gösterdiği aksiyon; boşsa metrik ailesinin varsayılanı. */
-function actionOf(quest: Quest) {
-  return effectiveAction(quest)
+/* ── Kademeler (MOCK) ──────────────────────────────────────────────────────
+ * Sunucu bugün tek eşik dönüyor; üç kademe ve erişim hunisi panelde yerel
+ * üretiliyor. Sözleşme önerisi ve gerekçe: views/quests/questTiers.ts.
+ * Sayılar deterministik (anahtardan tohumlu), sayfa yenilenince oynamaz.
+ */
+const expandedRows = ref<Record<string, boolean>>({})
+const reachByQuest = computed(() => {
+  const map = new Map<string, QuestReach>()
+  rows.value.forEach((quest) => map.set(quest.id, mockReach(quest)))
+  return map
+})
+function reachOf(quest: Quest): QuestReach {
+  return reachByQuest.value.get(quest.id) ?? mockReach(quest)
 }
+/** Üç kademenin eşikleri, satırda tek bakışta okunacak kısalıkta. */
+function tierTargets(quest: Quest) {
+  return reachOf(quest).tiers.map((tier) => tier.target)
+}
+/** Şölen kademesini tamamlayanın tüm havuza oranı: görevin gerçek zirvesi. */
+function topShare(quest: Quest) {
+  const reach = reachOf(quest)
+  const top = reach.tiers[reach.tiers.length - 1]
+  return reach.audience > 0 ? top.stats.completedUsers / reach.audience : 0
+}
+const expandAll = () => {
+  expandedRows.value = Object.fromEntries(visibleRows.value.map((quest) => [quest.id, true]))
+}
+const collapseAll = () => {
+  expandedRows.value = {}
+}
+const expandedCount = computed(() => Object.keys(expandedRows.value).length)
+/** Sıradaki kademenin adı; satırdaki eşik rozetleri için. */
+const tierNameAt = (index: number) => TIER_META[TIER_ORDER[index]].label
 
 const emptyForm = (): QuestInput => ({
   key: '',
@@ -120,6 +154,8 @@ const emptyForm = (): QuestInput => ({
   sortOrder: 0,
 })
 const form = reactive<QuestInput>(emptyForm())
+/** Formdaki tek eşikten türeyen merdiven; diyalogda salt okunur önizleme. */
+const formLadder = computed(() => tierLadder(form.target, form.xpReward))
 const title = computed(() => (editing.value ? 'Görevi düzenle' : 'Yeni görev'))
 const keyInvalid = computed(() => !/^[a-z0-9_-]{3,40}$/.test(form.key))
 const formInert = computed(() => INERT_METRICS.has(form.metric))
@@ -278,6 +314,14 @@ onMounted(load)
       (Gökkuşağı haftası / Elle). Bu görevler kullanıcıda hiç ilerlemez ve alınamaz.
     </Message>
 
+    <Message severity="info" :closable="false" icon="pi pi-flask">
+      <strong>Kademeler ve erişim sayıları mock.</strong>
+      Sunucu bugün görev başına tek eşik dönüyor; satırı açınca görünen üç kademe
+      (Tadımlık · Doyumluk · Şölen) ve tüm yüzdeler panelde yerel üretiliyor, canlı
+      veri değil. Kaydetme akışı hâlâ tek eşiği yazar. Backend'den beklenen gövde
+      src/views/quests/questTiers.ts dosyasının başında yazılı.
+    </Message>
+
     <section class="table-card">
       <div class="table-toolbar">
         <Select
@@ -294,10 +338,19 @@ onMounted(load)
           option-value="value"
           placeholder="Tüm durumlar"
         />
+        <Button
+          :label="expandedCount > 0 ? 'Kademeleri kapat' : 'Kademeleri aç'"
+          :icon="expandedCount > 0 ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+          size="small"
+          severity="secondary"
+          outlined
+          @click="expandedCount > 0 ? collapseAll() : expandAll()"
+        />
         <span class="result-count">{{ visibleRows.length }} / {{ rows.length }} görev · {{ activeCount }} aktif</span>
       </div>
 
       <DataTable
+        v-model:expanded-rows="expandedRows"
         :value="visibleRows"
         :loading="loading"
         data-key="id"
@@ -314,8 +367,13 @@ onMounted(load)
           />
         </template>
 
+        <template #expansion="{ data }">
+          <QuestTierPanel :quest="data" :metric-label="metricLabel(data.metric)" />
+        </template>
+
+        <Column expander style="width: 3.25rem" />
         <Column field="sortOrder" header="Sıra" sortable style="width: 5rem" />
-        <Column header="Görev" style="min-width: 20rem">
+        <Column header="Görev" style="min-width: 17rem">
           <template #body="{ data }">
             <div class="food-cell">
               <span class="quest-glyph">{{ data.emoji }}</span>
@@ -326,7 +384,7 @@ onMounted(load)
             </div>
           </template>
         </Column>
-        <Column header="Metrik" style="min-width: 12rem">
+        <Column header="Metrik" style="min-width: 10.5rem">
           <template #body="{ data }">
             <Tag
               :value="metricLabel(data.metric)"
@@ -334,23 +392,60 @@ onMounted(load)
             />
           </template>
         </Column>
-        <Column header="Aksiyon" style="min-width: 11.5rem">
+        <Column header="Kademe eşikleri" style="min-width: 9.5rem">
           <template #body="{ data }">
-            <div v-if="actionOf(data)" class="action-cell">
-              <strong>{{ actionOf(data)!.label }}</strong>
-              <small>
-                {{ questTargetLabel(actionOf(data)!.target) }}
-                <em v-if="!actionOf(data)!.custom" class="default-flag">varsayılan</em>
-              </small>
+            <div class="ladder-cell">
+              <span
+                v-for="(value, index) in tierTargets(data)"
+                :key="index"
+                class="ladder-step"
+                :class="`s${index}`"
+                :title="tierNameAt(index)"
+              >{{ value }}</span>
             </div>
-            <span v-else class="muted-status">düğme yok</span>
+            <small class="ladder-note">tadımlık · doyumluk · şölen</small>
           </template>
         </Column>
-        <Column header="Hedef" style="width: 7rem">
-          <template #body="{ data }"><strong>{{ data.target }}</strong></template>
+        <Column header="Ödül merdiveni" style="min-width: 10rem">
+          <template #body="{ data }">
+            <div class="reward-cell">
+              <span class="measure-pill xp">
+                {{ reachOf(data).tiers[0].xpReward }} → {{ reachOf(data).tiers[2].xpReward }} XP
+              </span>
+              <span class="measure-pill pouch">
+                <i class="pi pi-comments" />
+                {{ reachOf(data).tiers[0].pouchReward }} → {{ pouchLabel(reachOf(data).tiers[2].pouchReward) }}
+              </span>
+            </div>
+          </template>
         </Column>
-        <Column header="Tecrübe" style="width: 7.5rem">
-          <template #body="{ data }"><span class="measure-pill">+{{ data.xpReward }} XP</span></template>
+        <Column header="Erişim" style="min-width: 9rem">
+          <template #body="{ data }">
+            <div class="rate-cell">
+              <strong>{{ percent(reachOf(data).tiers[0].stats.reachedShare) }}</strong>
+              <div class="rate-track">
+                <div
+                  class="rate-fill"
+                  :style="{ width: `${Math.round(reachOf(data).tiers[0].stats.reachedShare * 100)}%` }"
+                />
+              </div>
+              <small>{{ countLabel(reachOf(data).tiers[0].stats.reachedUsers) }} kişi başladı</small>
+            </div>
+          </template>
+        </Column>
+        <Column header="Tamamlama" style="min-width: 9rem">
+          <template #body="{ data }">
+            <div class="rate-cell">
+              <strong>{{ percent(reachOf(data).tiers[0].stats.completionRate) }}</strong>
+              <div class="rate-track">
+                <div
+                  class="rate-fill"
+                  :style="{ width: `${Math.round(reachOf(data).tiers[0].stats.completionRate * 100)}%` }"
+                />
+              </div>
+              <small>tadımlık · şölene varan {{ percent(topShare(data)) }}</small>
+            </div>
+          </template>
         </Column>
         <Column header="Durum" style="width: 7rem">
           <template #body="{ data }">
@@ -526,11 +621,41 @@ onMounted(load)
         <div class="form-field">
           <label for="quest-target">Hedef *</label>
           <InputNumber id="quest-target" v-model="form.target" :min="1" fluid />
+          <small>Tadımlık kademesinin eşiği; üst iki kademe bundan türetilir.</small>
         </div>
         <div class="form-field">
           <label for="quest-xp">Tecrübe ödülü</label>
           <InputNumber id="quest-xp" v-model="form.xpReward" :min="0" suffix=" XP" fluid />
+          <small>Tadımlık kademesinin ödülü.</small>
         </div>
+
+        <div class="section-rule span-4">
+          <span>KADEME MERDİVENİ</span>
+          <em>öneri · kaydedilmiyor</em>
+        </div>
+
+        <div class="ladder-strip span-4">
+          <div v-for="(tier, index) in formLadder" :key="tier.key" class="ladder-card">
+            <span class="ladder-glyph">{{ TIER_META[tier.key].glyph }}</span>
+            <div>
+              <strong>{{ TIER_META[tier.key].label }}</strong>
+              <small>{{ tier.target }} {{ form.metric ? metricLabel(form.metric) : 'hedef' }}</small>
+            </div>
+            <div class="ladder-rewards">
+              <span class="measure-pill xp">+{{ tier.xpReward }} XP</span>
+              <span class="measure-pill pouch">
+                <i class="pi pi-comments" />{{ pouchLabel(tier.pouchReward) }}
+              </span>
+            </div>
+            <i v-if="index < 2" class="pi pi-angle-right ladder-arrow" />
+          </div>
+        </div>
+        <p class="ladder-caption span-4">
+          Üç kademe aynı metriği sayar, yalnız porsiyon büyür. Eşikler bugün yukarıdaki tek
+          hedeften hesaplanıyor ve kaydedilmiyor: sunucu kademe alanlarını dönmeye
+          başlayana kadar bu bölüm salt okunur bir öneridir. İkram kesesi ödülü sohbet
+          hakkı adedidir, para değil.
+        </p>
 
         <Message v-if="formInert" severity="warn" :closable="false" class="span-2">
           Bu metriğin arkasında bir sayaç yok: görev kullanıcıda hiç ilerlemez ve alınamaz.
@@ -576,5 +701,60 @@ onMounted(load)
   background: #dff0e7;
   font-size: 17px;
   line-height: 1;
+}
+
+/* ── Kademe hücreleri (liste) ───────────────────────────────────────────── */
+/* Üç eşik yan yana: merdiven hissi renk koyulaşmasından gelir, ok ya da
+   "1-2-3" etiketinden değil; satır dar ve sayılar okunur kalsın. */
+.ladder-cell { display: flex; align-items: center; gap: 5px; }
+.ladder-step {
+  min-width: 30px; padding: 3px 7px;
+  border-radius: 8px; text-align: center;
+  font-size: 11px; font-weight: 900; font-variant-numeric: tabular-nums;
+}
+.ladder-step.s0 { color: #4b6f5c; background: #eef6f1; }
+.ladder-step.s1 { color: #2f6b4f; background: #dcefe4; }
+.ladder-step.s2 { color: #10503a; background: #c6e5d4; }
+.ladder-note { display: block; margin-top: 5px; color: #a3a59c; font-size: 8.5px; font-weight: 700; }
+
+.reward-cell { display: grid; gap: 5px; justify-items: start; }
+.reward-cell .measure-pill, .ladder-rewards .measure-pill {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.measure-pill.xp { color: #2f6b4f; border-color: #cfe6da; background: #f1f9f4; }
+.measure-pill.pouch { color: #7a5a1f; border-color: #ecdcbb; background: #fdf6e8; }
+.measure-pill.pouch i { font-size: 10px; }
+
+.rate-cell { display: grid; gap: 4px; }
+.rate-cell strong { color: #333831; font-size: 13px; font-variant-numeric: tabular-nums; }
+.rate-cell small { color: #9a9c94; font-size: 8.5px; font-weight: 700; }
+.rate-track { height: 6px; border-radius: 999px; background: #eef2ec; overflow: hidden; }
+.rate-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #34d399, #059669); }
+
+/* ── Diyalogdaki merdiven önizlemesi ────────────────────────────────────── */
+.ladder-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ladder-card {
+  position: relative;
+  display: grid; gap: 9px; align-content: start;
+  padding: 13px 14px;
+  border: 1px solid var(--line); border-radius: 14px; background: #fbfaf5;
+}
+.ladder-card:nth-child(3) { background: #f6faf6; }
+.ladder-glyph {
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border-radius: 9px 9px 9px 3px; background: #dff0e7; font-size: 14px; line-height: 1;
+}
+.ladder-card strong { display: block; color: #2f342e; font-size: 12px; }
+.ladder-card small { display: block; margin-top: 3px; color: #8d9087; font-size: 9.5px; font-weight: 700; }
+.ladder-rewards { display: flex; flex-wrap: wrap; gap: 5px; }
+.ladder-arrow {
+  position: absolute; right: -12px; top: 50%; transform: translateY(-50%);
+  z-index: 1; color: #c5c8bf; font-size: 13px;
+}
+.ladder-caption { margin: -4px 0 0; color: #8a8d84; font-size: 10px; line-height: 1.65; }
+
+@media (max-width: 900px) {
+  .ladder-strip { grid-template-columns: 1fr; }
+  .ladder-arrow { display: none; }
 }
 </style>

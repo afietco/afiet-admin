@@ -156,6 +156,42 @@ export type UserGamification = {
   league: LeagueState
 }
 
+/*
+ * İKRAM KESESİ: burada bilerek YOK, çünkü uçta yok.
+ *
+ * Kese, haftalık Afi sohbeti hakkıdır ve boyutunu lig kademesi + unvan bandı +
+ * o haftanın KARŞILIKLI selamları belirler (afiet-gamification/docs/13).
+ * Backend bunu hesaplıyor ama yalnız kişinin kendisi için:
+ * `GET /v1/kese` → store.KeseView (afiet-backend/internal/store/kese.go,
+ * internal/server/kese_handlers.go). `GET /v1/admin/users/{id}` yanıtında
+ * karşılığı yok, yani panel bir BAŞKASININ kesesini okuyamıyor; 5 Ağu 2026
+ * itibarıyla yanıtın sekiz bloğu (profile, usage, habits, sessions,
+ * gamification, social, notifications, audit) içinde kese geçmiyor.
+ *
+ * Gereken backend işi: AdminUserDetail'e aşağıdaki blok.
+ *
+ *   kese: {
+ *     enabled: boolean          // KESE_ENABLED kapalıysa false, kese uykuda
+ *     allowance: { total, tier, level, greetings, welcome, ... }
+ *     spent: number
+ *     remaining: number
+ *     empty: boolean
+ *     weekStart: string         // o haftanın pazartesi'si, YYYY-MM-DD
+ *     refreshesAt: string       // gelecek pazartesi 00:00 Europe/Istanbul
+ *     tier: string
+ *     level: number
+ *     premium: boolean
+ *   } | null
+ *
+ * Şekli store.KeseView ile birebir aynı; handler tarafında adminUserDetail
+ * içine `s.store.KeseFor(ctx, userID, now)` çağrısı eklemek yetiyor (now
+ * Europe/Istanbul olmalı, hafta sınırı oradan kesiliyor).
+ *
+ * Bu gelene kadar panel keseyi TAHMİN ETMİYOR: kademe ve seviye elimizde ama o
+ * haftanın karşılıklı selam sayısı yok, uydurulan bir "kalan 4 hak" gerçek
+ * ekranla çelişirdi. Ekran boş durumu açıkça söylüyor.
+ */
+
 // ── Sosyal ve bildirim ───────────────────────────────────────────────────────
 
 export type GroupMembership = {
@@ -249,6 +285,125 @@ export type Provenance = 'live' | 'demo'
 export type UserDetailResult = {
   detail: UserDetail
   sources: Record<keyof UserDetail, Provenance>
+}
+
+// ── Sürüm ────────────────────────────────────────────────────────────────────
+
+/**
+ * Kullanıcının hangi sürümü kullandığı, iki AYRI kaynaktan okunmuş hali.
+ *
+ * `running` doğru cevaptır: son `session_start` olayının app_version'ı, yani
+ * uygulamanın en son gerçekten hangi sürümle açıldığı.
+ *
+ * `registered` push cihaz kaydındaki sürümdür ve BAYAT olabilir: `push_devices`
+ * satırı yalnız push parmak izi (token, izin, platform) değişince yeniden
+ * yazılıyor, sürüm yükseltmesi tek başına o satıra dokunmuyor. Yerel veride
+ * gerçekten çalışan örneği var: bir kullanıcı 0.10.0 açıyor ama cihaz kaydı
+ * hâlâ 0.8.0 diyor.
+ *
+ * İkisi de gösterilir ve çakıştıklarında `stale` true olur; panel "kayıtlı
+ * sürüm geride" der, iki sayıdan hangisine inanılacağını ekran söyler.
+ */
+export type VersionInfo = {
+  running: string | null
+  runningAt: string | null
+  runningPlatform: string | null
+  registered: string | null
+  registeredAt: string | null
+  registeredPlatform: string | null
+  /** İki kaynak farklı sürüm söylüyor: cihaz kaydı geride kalmış. */
+  stale: boolean
+}
+
+/**
+ * Detay yanıtından sürüm tablosunu çıkarır.
+ *
+ * En yeni satırı tarih karşılaştırarak seçiyor, dizinin sırasına güvenmiyor:
+ * uç bugün azalan sırada dönüyor ama bu sözleşmede yazılı değil.
+ */
+export function versionInfo(detail: Pick<UserDetail, 'sessions' | 'notifications'>): VersionInfo {
+  const time = (value: string) => new Date(value).getTime()
+  const sessions = (detail.sessions.recent ?? [])
+    .filter((row) => row.appVersion)
+    .sort((a, b) => time(b.startedAt) - time(a.startedAt))
+  const devices = (detail.notifications.devices ?? [])
+    .filter((row) => row.appVersion)
+    .sort((a, b) => time(b.lastSeenAt) - time(a.lastSeenAt))
+  const running = sessions[0]?.appVersion ?? null
+  const registered = devices[0]?.appVersion ?? null
+  return {
+    running,
+    runningAt: sessions[0]?.startedAt ?? null,
+    runningPlatform: sessions[0]?.platform ?? null,
+    registered,
+    registeredAt: devices[0]?.lastSeenAt ?? null,
+    registeredPlatform: devices[0]?.platform ?? null,
+    stale: Boolean(running && registered && running !== registered),
+  }
+}
+
+export const PLATFORM_LABELS: Record<string, string> = { ios: 'iOS', android: 'Android', web: 'Web' }
+export const platformLabel = (key: string | null) => (key ? PLATFORM_LABELS[key] ?? key : '')
+
+// ── Lig (liste sütunu için toplu okuma) ──────────────────────────────────────
+
+/**
+ * Kullanıcı listesinde lig sütunu, kullanıcı başına istek atmadan.
+ *
+ * Liste ucunda lig alanı yok ama lig MASA MASA okunabiliyor: açık mevsimin
+ * masaları `GET /v1/admin/league/seasons` ile tek istekte, her masanın üyeleri
+ * `GET /v1/admin/league/tables/{id}` ile bir istekte geliyor. İstek sayısı
+ * kademe sayısı kadar (bugün 2, tavanda 5), kullanıcı sayısıyla büyümüyor.
+ * Detay ucunu 500 satır için ayrı ayrı çağırmak ile arasındaki fark bu.
+ *
+ * Puan penceresi iki uçta bir tık farklı: masa ucu ayın sınırlarını, detay ucu
+ * mevsim başından bugüne olanı topluyor. Açık mevsimde ikisi aynı aya denk
+ * geldiği için pratikte aynı sayı; sıra ise aynı formülle hesaplandığı için
+ * listeyle detay her koşulda aynı şeyi söyler.
+ */
+export type LeagueSeat = { tier: string; rank: number; members: number; score: number }
+
+type LeagueTable = { tableId: string; tier: string; seat: number; members: number }
+type LeagueSeasonsResponse = {
+  /** LEAGUE_ENABLED. Kapalıyken masalar durur ama mevsim işlemez. */
+  enabled: boolean
+  seasons: { seasonId: string; startsOn: string; closedAt: string | null; members: number; tables: LeagueTable[] }[]
+  tiers: string[]
+}
+type LeagueTableRow = { userId: string; score: number }
+
+export type LeagueMap = {
+  enabled: boolean
+  seasonStart: string | null
+  seats: Map<string, LeagueSeat>
+}
+
+/** Açık mevsimin tüm masalarını okuyup kullanıcı → koltuk haritası çıkarır. */
+export async function loadLeagueSeats(): Promise<LeagueMap> {
+  const response = await request<LeagueSeasonsResponse>('/v1/admin/league/seasons')
+  const open = response.seasons.find((season) => !season.closedAt) ?? null
+  const seats = new Map<string, LeagueSeat>()
+  if (!open) return { enabled: response.enabled, seasonStart: null, seats }
+  const tables = await Promise.all(
+    open.tables.map(async (table) => ({
+      table,
+      rows: await request<LeagueTableRow[] | null>(`/v1/admin/league/tables/${table.tableId}`),
+    })),
+  )
+  for (const { table, rows } of tables) {
+    const members = rows ?? []
+    for (const row of members) {
+      // Sıra, detay ucunun kullandığı YARIŞMA SIRASI ile birebir aynı formülle
+      // hesaplanır: "benden yüksek puanlı kaç kişi var" + 1. Eşit puanlılar aynı
+      // sırayı paylaşır. Dizinin indisini sıra saymak listede 5., detayda 2.
+      // yazan bir kişiye yol açardı: sıfır puanlı on kişi aynı sıradadır.
+      const rank = members.filter((other) => other.score > row.score).length + 1
+      seats.set(row.userId, {
+        tier: table.tier, rank, members: table.members, score: row.score,
+      })
+    }
+  }
+  return { enabled: response.enabled, seasonStart: open.startsOn, seats }
 }
 
 // ── Etiketler ────────────────────────────────────────────────────────────────

@@ -4,7 +4,10 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import SourceChip from './SourceChip.vue'
-import { label, STATUS_META, type Provenance, type UserDetail, type UserStatus } from '../../services/users'
+import {
+  label, platformLabel, STATUS_META, versionInfo,
+  type Provenance, type UserDetail, type UserStatus,
+} from '../../services/users'
 import { age, ago, date, dateTime, num } from './shared'
 
 const props = defineProps<{
@@ -52,6 +55,14 @@ const counters = computed(() => [
   { label: 'Selam (gönderilen)', value: props.detail.usage.greetingsSent, icon: 'pi pi-send' },
   { label: 'Selam (alınan)', value: props.detail.usage.greetingsReceived, icon: 'pi pi-inbox' },
 ])
+
+/**
+ * Sürüm iki kaynaktan okunur ve ikisi de gösterilir; hangisine inanılacağını
+ * ekran söyler. Ayrımın gerekçesi services/users.ts içindeki VersionInfo
+ * notunda: cihaz kaydı yalnız push parmak izi değişince yeniden yazılıyor.
+ */
+const version = computed(() => versionInfo(props.detail))
+const league = computed(() => props.detail.gamification.league)
 
 async function copyId() {
   try {
@@ -119,6 +130,62 @@ async function copyId() {
 
     <section class="panel-card pad">
       <div class="panel-title sm">
+        <div><p>SÜRÜM VE LİG</p><h2>Neyle geziyor, nerede oturuyor</h2></div>
+        <SourceChip :source="sources.sessions" />
+      </div>
+      <div class="vl-grid">
+        <div class="vl-cell">
+          <small>ÇALIŞAN SÜRÜM</small>
+          <strong>{{ version.running || '—' }}</strong>
+          <em v-if="version.running">
+            {{ platformLabel(version.runningPlatform) }} · son oturum {{ dateTime(version.runningAt) }}
+          </em>
+          <em v-else>oturum telemetrisi bu kişiden akmıyor</em>
+        </div>
+        <div class="vl-cell" :class="{ stale: version.stale }">
+          <small>KAYITLI SÜRÜM</small>
+          <strong>{{ version.registered || '—' }}</strong>
+          <em v-if="version.registered">
+            {{ platformLabel(version.registeredPlatform) }} · push cihazı {{ dateTime(version.registeredAt) }}
+          </em>
+          <em v-else>push cihaz kaydı yok</em>
+        </div>
+        <div class="vl-cell">
+          <small>LİG</small>
+          <strong>{{ league ? label.tier(league.tier) : '—' }}</strong>
+          <em v-if="league">
+            {{ league.rank }}. / {{ num(league.members) }} kişi · {{ num(league.points) }} puan ·
+            {{ league.seat }}. masa
+          </em>
+          <em v-else>bu mevsim hiçbir masaya oturmamış</em>
+        </div>
+      </div>
+      <p v-if="version.stale" class="vl-warn">
+        <i class="pi pi-exclamation-triangle" />
+        Cihaz kaydı geride kalmış: <strong>{{ version.registered }}</strong> yazıyor ama uygulama
+        <strong>{{ version.running }}</strong> ile açılmış. Sürüm satırı yalnız push parmak izi değişince
+        yeniden yazıldığı için doğru cevap çalışan sürümdür.
+      </p>
+      <!--
+        İkram kesesi: veri uçtan gelmiyor, uydurulmuyor. Gerekli alanın tam
+        şekli ve backend'de nereye eklendiği services/users.ts içindeki kese
+        notunda yazılı.
+      -->
+      <div class="vl-empty">
+        <i class="pi pi-inbox" />
+        <div>
+          <strong>İkram kesesi verisi henüz uçtan gelmiyor.</strong>
+          <small>
+            Kese haftalık Afi sohbeti hakkı; boyutunu lig kademesi belirler. Backend bugün keseyi yalnız
+            kişinin kendi ucunda hesaplıyor, admin kullanıcı detayında karşılığı yok. Gelmesi hâlinde
+            haftalık hak, harcanan ve kalan bu kartta durur.
+          </small>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel-card pad">
+      <div class="panel-title sm">
         <div><p>SOFRA</p><h2>Gruplar ve arkadaşlar</h2></div>
         <SourceChip :source="sources.social" />
       </div>
@@ -143,3 +210,33 @@ async function copyId() {
     </section>
   </div>
 </template>
+
+<style scoped>
+.vl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.vl-cell { display: grid; gap: 4px; padding: 13px 15px; border: 1px solid #e5e9e2; border-radius: 14px; background: #f7f9f5; }
+.vl-cell small { color: #8b8e84; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.vl-cell strong { color: #2c332e; font-size: 20px; font-weight: 900; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.vl-cell em { color: #8d9087; font-size: 10.5px; font-style: normal; font-weight: 700; line-height: 1.45; }
+.vl-cell.stale { border-color: #ecd3a3; background: #fdf7ea; }
+.vl-cell.stale strong { color: #8a6512; }
+
+.vl-warn {
+  display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0;
+  padding: 10px 12px; border: 1px solid #ecd3a3; border-radius: 11px;
+  color: #8a6512; background: #fdf5e3; font-size: 11px; font-weight: 700; line-height: 1.5;
+}
+.vl-warn i { margin-top: 1px; font-size: 11px; }
+.vl-warn strong { font-weight: 900; font-variant-numeric: tabular-nums; }
+
+.vl-empty {
+  display: flex; gap: 12px; align-items: flex-start; margin-top: 12px;
+  padding: 14px 15px; border: 1px dashed #ddd8ca; border-radius: 14px; background: #fbf9f3;
+}
+.vl-empty i { margin-top: 2px; color: #b3b6ab; font-size: 15px; }
+.vl-empty strong { display: block; color: #5c6058; font-size: 12.5px; font-weight: 800; }
+.vl-empty small { display: block; margin-top: 4px; color: #9a9c93; font-size: 10.5px; font-weight: 700; line-height: 1.55; }
+
+@media (max-width: 900px) {
+  .vl-grid { grid-template-columns: 1fr; }
+}
+</style>
