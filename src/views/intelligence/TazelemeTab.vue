@@ -192,7 +192,7 @@ onBeforeUnmount(() => clearTimeout(poll))
 </template>
 
 <style scoped>
-.afi-tab { display: grid; gap: 16px; }
+.afi-tab { display: grid; gap: 16px; padding: 24px; }
 .afi-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .afi-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
 .afi-stat { padding: 12px 14px; border: 1px solid var(--surface-border, #e6e6e6); border-radius: 12px; background: var(--surface-card, #fff); }

@@ -148,7 +148,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.zeka-tab { display: grid; gap: 18px; }
+.zeka-tab { display: grid; gap: 18px; padding: 24px; }
 
 .notice { display: flex; gap: 11px; align-items: flex-start; padding: 13px 15px; border-radius: 14px; }
 .notice p { margin: 0; max-width: 88ch; font-size: 12.5px; line-height: 1.55; }
