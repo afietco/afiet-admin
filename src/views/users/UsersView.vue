@@ -9,6 +9,8 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import PageHeader from '../../components/PageHeader.vue'
 import EmptyState from '../../components/EmptyState.vue'
+import BetaDrawer from './BetaDrawer.vue'
+import { betaApi } from '../../services/beta'
 import { adminApi, type Summary, type User } from '../../services/admin'
 import type { GrowthData } from '../../services/growth'
 import { STATUS_META, statusOf, usersApi, type UserStatus } from '../../services/users'
@@ -31,6 +33,10 @@ const query = ref('')
 const status = ref<UserStatus | ''>('')
 const loading = ref(false)
 const error = ref('')
+// Beta başvuruları menüden kalktı; sayaç burada, liste yan panelde.
+const betaTotal = ref<number | null>(null)
+const betaLast7d = ref(0)
+const betaOpen = ref(false)
 
 const statusOptions = [
   { value: '', label: 'Tüm durumlar' },
@@ -93,6 +99,11 @@ async function loadStrip() {
   try {
     growth.value = await adminApi.growth()
   } catch { /* şerit kartı '—' gösterir */ }
+  try {
+    const beta = await betaApi.get()
+    betaTotal.value = beta.total
+    betaLast7d.value = beta.summary.last7d
+  } catch { /* beta ucu afiet-web'de; düşerse kart '—' gösterir */ }
 }
 
 function open(user: User) {
@@ -120,13 +131,20 @@ onMounted(() => {
       <button @click="load">Tekrar dene</button>
     </div>
 
-    <section class="metric-grid" aria-label="Topluluk özeti">
+    <section class="metric-grid five" aria-label="Topluluk özeti">
       <article v-for="card in cards" :key="card.label" class="metric-card" :class="card.tone">
         <div class="metric-top"><span>{{ card.label }}</span><i :class="card.icon" /></div>
         <strong>{{ card.value }}</strong>
         <small>{{ card.foot }}</small>
       </article>
+      <button type="button" class="metric-card violet metric-action" @click="betaOpen = true">
+        <div class="metric-top"><span>Beta başvurusu</span><i class="pi pi-send" /></div>
+        <strong>{{ betaTotal === null ? '—' : num(betaTotal) }}</strong>
+        <small>son 7 günde {{ betaLast7d }} · listeyi aç <i class="pi pi-chevron-right" /></small>
+      </button>
     </section>
+
+    <BetaDrawer v-model:visible="betaOpen" />
 
     <section class="table-card" style="margin-top: 18px">
       <div class="table-toolbar">
