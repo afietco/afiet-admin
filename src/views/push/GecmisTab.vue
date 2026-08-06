@@ -27,6 +27,19 @@ const dateFormat = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeS
 const formatDate = (value: string) => dateFormat.format(new Date(value))
 const audienceLabel = (value: PushAudience) => value.kind === 'all' ? 'Herkes' : value.identifier
 
+/**
+ * Kuyruğu boşalmış ama tek teslimatı bile Expo'ya geçmemiş duyuru.
+ *
+ * Sunucu durumu yalnız bekleyen `push_events` kalıp kalmadığına bakarak
+ * türetiyor, teslimatların başarılı olup olmadığına bakmıyor; hepsi düşen bir
+ * duyuru da "bitti" sayılıyor. Panelin bunu sessizce onaylamaması için satır
+ * kendini işaretliyor.
+ *
+ * BACKEND İŞİ: doğrusu sunucuda ayrı bir `failed` durumu türetmek.
+ */
+const stalled = (row: PushBroadcast) =>
+  row.status === 'sent' && row.recipientCount > 0 && row.deliveredCount === 0
+
 async function load() {
   listLoading.value = true
   try {
@@ -103,14 +116,24 @@ defineExpose({ load })
       </Column>
       <Column header="Durum">
         <template #body="{ data }">
+          <!-- Kuyruğu boşalmış ama hiçbiri yola çıkmamışsa rozet yeşil kalmaz:
+               "bitti" doğru, "başarılı" değil. -->
           <Tag :value="pushStatusLabels[data.status as keyof typeof pushStatusLabels].label"
-               :severity="pushStatusLabels[data.status as keyof typeof pushStatusLabels].severity" />
+               :severity="stalled(data) ? 'warn' : pushStatusLabels[data.status as keyof typeof pushStatusLabels].severity" />
         </template>
       </Column>
-      <Column header="Ulaşan">
+      <!-- İki sayı BÖLÜNMÜYOR: deliveredCount cihaz, recipientCount kişi.
+           İki cihazlı tek kullanıcıda eski "2 / 1" oranı çıkıyordu. Artık
+           ikisi de kendi birimiyle, alt alta yazılıyor. -->
+      <Column header="Yola çıkan" style="min-width: 9rem">
         <template #body="{ data }">
-          <strong>{{ data.deliveredCount.toLocaleString('tr-TR') }}</strong>
-          <small class="unit"> / {{ data.recipientCount.toLocaleString('tr-TR') }}</small>
+          <div class="reach-cell">
+            <strong>{{ data.deliveredCount.toLocaleString('tr-TR') }} cihaz</strong>
+            <small>{{ data.recipientCount.toLocaleString('tr-TR') }} kişiye kuruldu</small>
+            <small v-if="stalled(data)" class="reach-warn">
+              <i class="pi pi-exclamation-triangle" /> hiçbiri yola çıkmadı
+            </small>
+          </div>
         </template>
       </Column>
       <Column header="" frozen align-frozen="right" style="width: 5rem">
@@ -125,3 +148,11 @@ defineExpose({ load })
     </DataTable>
   </div>
 </template>
+
+<style scoped>
+.reach-cell { display: grid; gap: 2px; }
+.reach-cell strong { color: #333831; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.reach-cell small { color: #8d9087; font-size: 10px; font-weight: 700; }
+.reach-cell .reach-warn { display: flex; align-items: center; gap: 4px; color: #a5442f; }
+.reach-cell .reach-warn i { font-size: 9px; }
+</style>

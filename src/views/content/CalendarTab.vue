@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import SelectButton from 'primevue/selectbutton'
+import ChannelFilter from './ChannelFilter.vue'
 import type { Channel, ContentItem } from '../../services/content'
 import {
   addDays, addMonths, dayNumber, dayShort, dayTitle, hhmm, instantFor, instantToKey, layoutDay,
@@ -31,7 +32,8 @@ const { payload, moveItem } = useContentStore()
 type View = 'gun' | 'hafta' | 'ay'
 const view = ref<View>('hafta')
 const cursor = ref<DayKey>(todayKey())
-const channelFilter = ref<Channel | 'hepsi'>('hepsi')
+// Boş dizi = tüm platformlar (bkz. ChannelFilter).
+const channelFilter = ref<Channel[]>([])
 const gridRef = ref<HTMLElement | null>(null)
 
 const viewOptions = [
@@ -39,7 +41,6 @@ const viewOptions = [
   { value: 'hafta', label: 'Hafta' },
   { value: 'ay', label: 'Ay' },
 ]
-const filterOptions = [{ value: 'hepsi', label: 'Tümü' }, ...CHANNELS.map((c) => ({ value: c.value, label: c.label }))]
 
 const title = computed(() =>
   view.value === 'ay' ? monthTitle(cursor.value) : view.value === 'hafta' ? weekTitle(cursor.value) : dayTitle(cursor.value),
@@ -48,7 +49,7 @@ const title = computed(() =>
 /** Tarihi olan ve filtreden geçen içerikler. */
 const dated = computed(() =>
   payload.value.items.filter(
-    (i) => i.plannedAt && (channelFilter.value === 'hepsi' || i.channel === channelFilter.value),
+    (i) => i.plannedAt && (!channelFilter.value.length || channelFilter.value.includes(i.channel)),
   ),
 )
 
@@ -107,7 +108,7 @@ watch(view, (v) => {
 // ── Yeni etkinlik ────────────────────────────────────────────────────────────
 function newAt(key: DayKey, minutes: number | null) {
   openEditor(null, {
-    channel: channelFilter.value === 'hepsi' ? undefined : channelFilter.value,
+    channel: channelFilter.value.length === 1 ? channelFilter.value[0] : undefined,
     plannedAt: minutes === null ? instantFor(key, 0) : instantFor(key, minutes),
     allDay: minutes === null,
   })
@@ -209,7 +210,7 @@ const cardTip = (item: ContentItem) =>
         <h2 class="cal-title">{{ title }}</h2>
       </div>
       <div class="cal-actions">
-        <SelectButton v-model="channelFilter" :options="filterOptions" option-label="label" option-value="value" :allow-empty="false" size="small" />
+        <ChannelFilter v-model="channelFilter" />
         <SelectButton v-model="view" :options="viewOptions" option-label="label" option-value="value" :allow-empty="false" size="small" />
         <Button label="Yeni etkinlik" icon="pi pi-plus" size="small" @click="newAt(cursor, 12 * 60 + 30)" />
       </div>

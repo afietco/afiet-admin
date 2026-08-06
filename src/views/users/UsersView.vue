@@ -9,9 +9,15 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import PageHeader from '../../components/PageHeader.vue'
 import EmptyState from '../../components/EmptyState.vue'
+import BetaDrawer from './BetaDrawer.vue'
+import UserQuickPanel from './UserQuickPanel.vue'
+import { betaApi } from '../../services/beta'
 import { adminApi, type Summary, type User } from '../../services/admin'
 import type { GrowthData } from '../../services/growth'
-import { STATUS_META, statusOf, usersApi, type UserStatus } from '../../services/users'
+import {
+  label, loadLeagueSeats, STATUS_META, statusOf, usersApi,
+  type LeagueMap, type UserStatus,
+} from '../../services/users'
 import { ago, date, initial, num, pct } from './shared'
 
 /**
@@ -31,13 +37,26 @@ const query = ref('')
 const status = ref<UserStatus | ''>('')
 const loading = ref(false)
 const error = ref('')
+// Beta başvuruları menüden kalktı; sayaç burada, liste yan panelde.
+const betaTotal = ref<number | null>(null)
+const betaLast7d = ref(0)
+const betaOpen = ref(false)
+// Satıra tıklayınca sayfa değişmiyor, hızlı bakış paneli açılıyor.
+const selected = ref<User | null>(null)
+const quickOpen = ref(false)
+const league = ref<LeagueMap | null>(null)
 
 const statusOptions = [
   { value: '', label: 'Tüm durumlar' },
   ...(Object.keys(STATUS_META) as UserStatus[]).map((key) => ({ value: key, label: STATUS_META[key].label })),
 ]
 
-const decorated = computed(() => rows.value.map((user) => ({ user, status: statusOf(user) })))
+const decorated = computed(() =>
+  rows.value.map((user) => ({
+    user,
+    status: statusOf(user),
+    league: league.value?.seats.get(user.userId) ?? null,
+  })))
 const visible = computed(() =>
   decorated.value.filter((row) => !status.value || row.status === status.value))
 
@@ -93,9 +112,47 @@ async function loadStrip() {
   try {
     growth.value = await adminApi.growth()
   } catch { /* şerit kartı '—' gösterir */ }
+  try {
+    const beta = await betaApi.get()
+    betaTotal.value = beta.total
+    betaLast7d.value = beta.summary.last7d
+  } catch { /* beta ucu afiet-web'de; düşerse kart '—' gösterir */ }
+  try {
+    league.value = await loadLeagueSeats()
+  } catch { /* lig sütunu '—' gösterir */ }
 }
 
+/**
+ * Satıra tıklamak artık sayfa değiştirmiyor, sağdan hızlı bakışı açıyor
+ * (beta listesindeki davranışın aynısı). Tam sayfa bir tık ötede: satır
+ * sonundaki ok düğmesi ve panelin içindeki "Kişisel sayfaya git".
+ *
+ * NEDEN LİG SÜTUNU VAR AMA SÜRÜM SÜTUNU YOK
+ *
+ * Liste ucu (GET /v1/admin/users) on alan dönüyor: userId, email, displayName,
+ * emoji, createdAt, updatedAt, mealCount, customFoodCount, measurementCount,
+ * lastActivityAt. Ne sürüm ne lig içinde.
+ *
+ * Lig yine de gösterilebiliyor, çünkü toplu okunabiliyor: açık mevsimin
+ * masaları ve masa üyeleri kademe sayısı kadar istekle geliyor
+ * (services/users.ts, loadLeagueSeats). Kullanıcı sayısıyla büyümüyor.
+ *
+ * Sürüm için böyle bir toplu uç YOK. Doğru sürüm son session_start olayının
+ * app_version'ı ve o yalnız kullanıcı detayında hesaplanıyor; 500 satır için
+ * 500 detay isteği demek olurdu, üstelik detay ucu tek kullanıcı için saniyeler
+ * sürüyor. Sütun açılabilmesi için liste sorgusuna (afiet-backend
+ * internal/store/admin.go, AdminUsers) tek bir alan gerekiyor:
+ *   appVersion → o kullanıcının en son session_start olayındaki app_version
+ *                (push_devices.app_version DEĞİL, o bayat olabiliyor; gerekçe
+ *                services/users.ts içindeki VersionInfo notunda)
+ * O gelene kadar sürüm yalnız hızlı panelde ve kullanıcı detayında.
+ */
 function open(user: User) {
+  selected.value = user
+  quickOpen.value = true
+}
+
+function openFullPage(user: User) {
   router.push({ name: 'user-detail', params: { userId: user.userId } })
 }
 
@@ -120,13 +177,20 @@ onMounted(() => {
       <button @click="load">Tekrar dene</button>
     </div>
 
-    <section class="metric-grid" aria-label="Topluluk özeti">
+    <section class="metric-grid five" aria-label="Topluluk özeti">
       <article v-for="card in cards" :key="card.label" class="metric-card" :class="card.tone">
         <div class="metric-top"><span>{{ card.label }}</span><i :class="card.icon" /></div>
         <strong>{{ card.value }}</strong>
         <small>{{ card.foot }}</small>
       </article>
+      <button type="button" class="metric-card violet metric-action" @click="betaOpen = true">
+        <div class="metric-top"><span>Beta başvurusu</span><i class="pi pi-send" /></div>
+        <strong>{{ betaTotal === null ? '—' : num(betaTotal) }}</strong>
+        <small>son 7 günde {{ betaLast7d }} · listeyi aç <i class="pi pi-chevron-right" /></small>
+      </button>
     </section>
+
+    <BetaDrawer v-model:visible="betaOpen" />
 
     <section class="table-card" style="margin-top: 18px">
       <div class="table-toolbar">
@@ -207,6 +271,20 @@ onMounted(() => {
           </template>
         </Column>
 
+        <Column header="Lig" sortable sort-field="league.score" style="width: 9rem">
+          <template #body="{ data }">
+            <span
+              v-if="data.league"
+              class="league-cell"
+              v-tooltip.top="`${num(data.league.score)} puan · ${num(data.league.members)} kişilik masa`"
+            >
+              <em>{{ label.tier(data.league.tier) }}</em>
+              <small>{{ data.league.rank }}. / {{ num(data.league.members) }}</small>
+            </span>
+            <span v-else class="date-cell">—</span>
+          </template>
+        </Column>
+
         <Column header="Öğün" sortable sort-field="user.mealCount" style="width: 6.5rem">
           <template #body="{ data }"><strong class="tabular">{{ num(data.user.mealCount) }}</strong></template>
         </Column>
@@ -233,8 +311,9 @@ onMounted(() => {
                 icon="pi pi-arrow-right"
                 text
                 rounded
-                aria-label="Kullanıcı detayı"
-                @click.stop="open(data.user)"
+                aria-label="Kişisel sayfaya git"
+                v-tooltip.left="'Kişisel sayfaya git'"
+                @click.stop="openFullPage(data.user)"
               />
             </div>
           </template>
@@ -242,10 +321,20 @@ onMounted(() => {
       </DataTable>
     </section>
 
+    <UserQuickPanel v-model:visible="quickOpen" :user="selected" />
+
     <p class="scope-note">
       <i class="pi pi-info-circle" />
       Bu liste Stack Auth'taki tüm hesapları değil, backend'e en az bir kez erişip profil satırı oluşan
-      kullanıcıları gösterir. Durum etiketi son hareket tarihinden türetilir.
+      kullanıcıları gösterir. Durum etiketi son hareket tarihinden türetilir. Bir satıra tıklamak sağdan
+      hızlı bakışı açar; sürüm, lig ve kese oradadır. Tam sayfa için satır sonundaki ok.
+      Lig sütunu açık mevsimin masalarından okunur; masaya oturmamış kişide boş kalır.
     </p>
   </div>
 </template>
+
+<style scoped>
+.league-cell { display: grid; gap: 1px; }
+.league-cell em { color: #14664d; font-size: 12px; font-style: normal; font-weight: 850; }
+.league-cell small { color: #8d9087; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>

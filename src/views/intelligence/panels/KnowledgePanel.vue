@@ -116,7 +116,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.panel-stack { display: grid; gap: 16px; }
+.panel-stack { display: grid; gap: 16px; padding: 24px; }
 
 .bind-card { padding: 19px 21px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .bind-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }

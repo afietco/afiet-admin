@@ -44,7 +44,7 @@ const version = computed(() => props.agent.live?.version ?? '')
 </template>
 
 <style scoped>
-.sim-panel { display: grid; gap: 18px; }
+.sim-panel { display: grid; gap: 18px; padding: 24px; }
 .sim-banner {
   display: flex; gap: 12px; align-items: flex-start;
   padding: 12px 15px; border: 1px solid #cfe4d7; border-radius: 13px; background: #eef8f2;
