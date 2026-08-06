@@ -40,8 +40,10 @@ const groups = [
     items: [
       // Kullanıcı detayı da bu maddenin altında yaşar; alt rota adı verilmezse
       // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
-      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users', also: ['user-detail'] },
-      { to: '/beta-basvurulari', label: 'Beta başvuruları', icon: 'pi pi-send', name: 'beta' },
+      // Beta başvuruları menüden çıktı: liste Kullanıcılar sayfasındaki
+      // karttan açılan yan panelde. Rota duruyor (yer imleri kırılmasın),
+      // beta alımı kapanınca ikisi birden kalkacak.
+      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users', also: ['user-detail', 'beta'] },
     ],
   },
   {
