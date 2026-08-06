@@ -31,9 +31,37 @@ export const SHEET_LABELS: Record<string, string> = {
   sofra: 'Sofra', whats_new: 'Yenilikler', hamburger_menu: 'Hamburger menü',
 }
 
-/** trackTap hedefleri; şimdilik yalnız giriş düğmeleri enstrümante. */
+/**
+ * trackTap hedefleri. Anahtarların kaynağı afiet-mobile'daki `trackTap`
+ * çağrılarıdır; oradaki her hedef burada bir karşılık bulmalı, yoksa panelde
+ * ham anahtar görünür (kırılmaz, yalnız okunmaz olur).
+ */
 export const TAP_LABELS: Record<string, string> = {
+  // Giriş
   auth_email: 'E-posta ile giriş', auth_google: 'Google ile giriş', auth_apple: 'Apple ile giriş',
+  // Öğün ekleme yolu
+  add_food_open: 'Besin ekleme açıldı',
+  addfood_search_pick: 'Aramadan besin seçildi',
+  addfood_photo: 'Fotoğrafla ekle',
+  addfood_sentence: 'Cümleyi Afi çözsün',
+  addfood_save: 'Besin kaydedildi',
+  addfood_skip_item: 'Bu besin eklenmedi',
+  // Afi foto turu
+  afi_photo_shot: 'Afi fotoğraf karesi',
+  afi_photo_correction: 'Afi okumasına düzeltme',
+  // Grup hunisi ve paylaşım
+  group_create_open: 'Grup kurma açıldı',
+  group_create_submit: 'Grup kurma gönderildi',
+  group_join_open: 'Grup arama açıldı',
+  group_join_submit: 'Gruba katılma gönderildi',
+  group_invite_share: 'Grup daveti paylaşıldı',
+  friend_code_share: 'Arkadaş kodu paylaşıldı',
+  // Kese, lig, görev, sohbet, gezinme
+  kese_chip: 'İkram kesesi çipi',
+  lig_open: 'Lig açıldı',
+  quest_claim: 'Görev ödülü alındı',
+  chat_entry: 'Sohbete giriş',
+  tab_switch: 'Sekme değiştirildi',
 }
 
 /** Oturum iskeleti dışındaki ürün olayları (oturum akışında görünenler). */
