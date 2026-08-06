@@ -225,7 +225,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.chat-tab { display: flex; flex-direction: column; gap: 1.25rem; }
+.chat-tab { display: flex; flex-direction: column; gap: 1.25rem; padding: 22px; }
 
 h3 { margin: 0 0 .6rem; font-size: .95rem; }
 

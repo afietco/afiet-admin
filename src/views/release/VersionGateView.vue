@@ -64,7 +64,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="version-gate">
+  <div class="page-wrap version-gate">
     <PageHeader
       eyebrow="ÜRÜN"
       title="Sürüm kapısı"

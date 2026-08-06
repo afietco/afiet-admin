@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
-import SelectButton from 'primevue/selectbutton'
+import ChannelFilter from './ChannelFilter.vue'
 import Tag from 'primevue/tag'
 import type { Channel, ContentItem } from '../../services/content'
 import { formatDate } from './shared'
@@ -16,12 +16,12 @@ import { BOARD_STATUSES, CHANNELS, NEXT_STATUS, channelMeta, formatMeta, openEdi
 const toast = useToast()
 const { payload, upsertItem } = useContentStore()
 
-const channelFilter = ref<Channel | 'hepsi'>('hepsi')
-const filterOptions = [{ value: 'hepsi', label: 'Tümü' }, ...CHANNELS.map((c) => ({ value: c.value, label: c.label }))]
+// Boş dizi = tüm platformlar (bkz. ChannelFilter).
+const channelFilter = ref<Channel[]>([])
 const archiveOpen = ref(false)
 
 const filtered = computed(() =>
-  payload.value.items.filter((i) => channelFilter.value === 'hepsi' || i.channel === channelFilter.value),
+  payload.value.items.filter((i) => !channelFilter.value.length || channelFilter.value.includes(i.channel)),
 )
 /** Kutu: tarihsizler. Arşiv ayrı blokta (tarihi olsa da olmasa da). */
 const undated = computed(() => filtered.value.filter((i) => !i.plannedAt))
@@ -51,8 +51,8 @@ async function advance(item: ContentItem) {
 <template>
   <div class="tab-body">
     <div class="content-toolbar">
-      <SelectButton v-model="channelFilter" :options="filterOptions" option-label="label" option-value="value" :allow-empty="false" />
-      <Button label="Yeni fikir" icon="pi pi-plus" @click="openEditor(null, { channel: channelFilter === 'hepsi' ? undefined : channelFilter, plannedAt: null })" />
+      <ChannelFilter v-model="channelFilter" />
+      <Button label="Yeni fikir" icon="pi pi-plus" @click="openEditor(null, { channel: channelFilter.length === 1 ? channelFilter[0] : undefined, plannedAt: null })" />
     </div>
 
     <p class="analytics-note">

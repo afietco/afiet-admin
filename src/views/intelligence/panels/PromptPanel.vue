@@ -132,7 +132,7 @@ async function copyPrompt() {
 </template>
 
 <style scoped>
-.panel-stack { display: grid; gap: 16px; }
+.panel-stack { display: grid; gap: 16px; padding: 24px; }
 
 .prompt-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
 .prompt-head strong { display: block; font-size: 14px; }
