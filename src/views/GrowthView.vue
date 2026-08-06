@@ -6,24 +6,22 @@ import AdminPlaceholder from '../components/AdminPlaceholder.vue'
 import LineChart from '../components/LineChart.vue'
 import { type GrowthData } from '../services/growth'
 import { adminApi } from '../services/admin'
-import { betaApi, label, type BetaAdminPayload } from '../services/beta'
 import { SERIES_COLORS, duration } from './analytics/shared'
+import { screenLabel, sheetLabel, tapLabel } from '../services/telemetry-labels'
 
 // Gerçek veri /v1/admin/growth'tan gelir. Uç erişilemezse (oturumsuz/404/ağ)
 // mock ÜRETİLMEZ; veri null kalır ve sayfa placeholder gösterir.
 const data = ref<GrowthData | null>(null)
-// Edinim kırılımı afiet-web'den ayrı gelir: beta başvuruları landing'in
-// Neon'unda yaşıyor. Bu uç düşerse sayfanın kalanı yine çalışsın diye
-// büyüme verisinden bağımsız tutuldu.
-const beta = ref<BetaAdminPayload | null>(null)
 const loading = ref(true)
 const d = computed(() => data.value)
 
 async function load() {
   loading.value = true
-  const [growth, betaRes] = await Promise.allSettled([adminApi.growth(), betaApi.get()])
-  data.value = growth.status === 'fulfilled' ? growth.value : null
-  beta.value = betaRes.status === 'fulfilled' ? betaRes.value : null
+  try {
+    data.value = await adminApi.growth()
+  } catch {
+    data.value = null
+  }
   loading.value = false
 }
 onMounted(load)
@@ -51,10 +49,6 @@ const trendSeries = computed(() => [
 // Oturum telemetrisi mobil 0.9 ile yayılıyor; hiç oturum yoksa şerit not düşer.
 const sess = computed(() => d.value?.habit.sessions)
 const sessionsLive = computed(() => (sess.value?.wau ?? 0) > 0)
-// "Nereden duydun?" yanıtlarının toplamı. Başvuru sayısına eşit değil:
-// alan isteğe bağlı, boş bırakanlar bu toplama girmez.
-const heardRows = computed(() => (beta.value?.summary.heard ?? []).filter((r) => r.key))
-const heardTotal = computed(() => heardRows.value.reduce((s, r) => s + r.count, 0))
 const distTotal = computed(() => (d.value?.habit.activeDayDistribution ?? []).reduce((s, r) => s + r.users, 0))
 const mealTotal = computed(() => (d.value?.habit.mealTypes ?? []).reduce((s, r) => s + r.count, 0))
 
@@ -94,18 +88,19 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>HAFTALIK KAYIT TRENDİ</p><h2>Yeni kullanıcı</h2></div></div>
             <LineChart :labels="trendLabels" :series="trendSeries" :height="180" />
+            <p class="note-line" v-if="!d.growth.acquisitionTracked"><i class="pi pi-info-circle" /> UTM / ülke / dil kırılımı için kayıt anında alan eklenmeli, henüz toplanmıyor.</p>
           </article>
 
           <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>BETA BAŞVURU KAYNAĞI</p><h2>{{ fmt(beta?.total ?? 0) }} başvuru</h2></div></div>
-            <ul class="src-list" v-if="heardRows.length">
-              <li v-for="s in heardRows" :key="s.key">
-                <div class="src-row"><span class="src-name">{{ label.heard(s.key) }}</span><span class="src-val">{{ fmt(s.count) }} · {{ pct(s.count, heardTotal) }}%</span></div>
-                <div class="mini-track"><div class="mini-fill violet" :style="{ width: `${pct(s.count, heardTotal)}%` }" /></div>
-              </li>
-            </ul>
-            <p class="note-line" v-else><i class="pi pi-info-circle" /> Henüz "nereden duydun" yanıtı yok; alan başvuruda isteğe bağlı.</p>
-            <p class="note-line" v-if="!d.growth.acquisitionTracked"><i class="pi pi-info-circle" /> UTM / ülke / dil kırılımı için kayıt anında alan eklenmeli, henüz toplanmıyor.</p>
+            <div class="panel-title sm"><div><p>OTURUM NABZI</p><h2>Uygulama kullanımı</h2></div></div>
+            <div class="session-row pulse">
+              <div class="session-cell"><strong>{{ fmt(sess?.dau ?? 0) }}</strong><small>OTURUM DAU</small></div>
+              <div class="session-cell"><strong>{{ fmt(sess?.wau ?? 0) }}</strong><small>OTURUM WAU</small></div>
+              <div class="session-cell"><strong>{{ duration(sess?.avgSessionSec ?? 0) }}</strong><small>ORT. OTURUM</small></div>
+              <div class="session-cell"><strong>{{ (sess?.sessionsPerActive ?? 0).toLocaleString('tr-TR') }}</strong><small>OTURUM / KİŞİ (7G)</small></div>
+              <div class="session-cell"><strong>%{{ sess?.fromNotificationPct ?? 0 }}</strong><small>BİLDİRİMDEN AÇILIŞ</small></div>
+            </div>
+            <p v-if="!sessionsLive" class="note-line subtle"><i class="pi pi-info-circle" /> Oturum telemetrisi mobil 0.9 sürümüyle yayılıyor; kullanıcılar güncelledikçe dolar.</p>
           </article>
         </div>
       </section>
@@ -144,7 +139,7 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
       <!-- ── C. Retention + D. Alışkanlık ── -->
       <section class="growth-block">
         <p class="block-caption">RETENTION & ALIŞKANLIK</p>
-        <div class="triple-grid">
+        <div class="split-grid wide-left">
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>KOHORT</p><h2>Retention</h2></div></div>
             <div class="ret-legend"><span><i class="k-open" /> uygulamayı açtı</span><span><i class="k-act" /> eylem yaptı</span></div>
@@ -162,30 +157,6 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
           </article>
 
           <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>AKTİVİTE</p><h2>Alışkanlık</h2></div></div>
-            <div class="dua-row">
-              <div class="dua-cell"><strong>{{ fmt(d.habit.dau) }}</strong><small>DAU (öğün)</small></div>
-              <div class="dua-cell"><strong>{{ fmt(d.habit.wau) }}</strong><small>WAU (öğün)</small></div>
-              <div class="dua-cell"><strong>{{ d.habit.avgRhythmDays }}</strong><small>ort. ritim günü</small></div>
-            </div>
-            <div class="session-row">
-              <div class="session-cell"><strong>{{ fmt(sess?.dau ?? 0) }}</strong><small>OTURUM DAU</small></div>
-              <div class="session-cell"><strong>{{ fmt(sess?.wau ?? 0) }}</strong><small>OTURUM WAU</small></div>
-              <div class="session-cell"><strong>{{ duration(sess?.avgSessionSec ?? 0) }}</strong><small>ORT. OTURUM</small></div>
-              <div class="session-cell"><strong>{{ (sess?.sessionsPerActive ?? 0).toLocaleString('tr-TR') }}</strong><small>OTURUM / KİŞİ (7G)</small></div>
-              <div class="session-cell"><strong>%{{ sess?.fromNotificationPct ?? 0 }}</strong><small>BİLDİRİMDEN AÇILIŞ</small></div>
-            </div>
-            <p v-if="!sessionsLive" class="note-line subtle" style="margin-top: 8px"><i class="pi pi-info-circle" /> Oturum telemetrisi mobil 0.9 sürümüyle yayılıyor; kullanıcılar güncelledikçe dolar.</p>
-            <p class="mini-cap">AKTİF GÜN DAĞILIMI (30g)</p>
-            <ul class="src-list tight">
-              <li v-for="b in d.habit.activeDayDistribution" :key="b.bucket">
-                <div class="src-row"><span class="src-name">{{ b.bucket }}</span><span class="src-val">{{ fmt(b.users) }}</span></div>
-                <div class="mini-track"><div class="mini-fill green" :style="{ width: `${pct(b.users, distTotal)}%` }" /></div>
-              </li>
-            </ul>
-          </article>
-
-          <article class="panel-card pad">
             <div class="panel-title sm"><div><p>NE YENİYOR</p><h2>Öğün tipi</h2></div></div>
             <ul class="src-list tight">
               <li v-for="m in d.habit.mealTypes" :key="m.meal">
@@ -195,6 +166,26 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
             </ul>
           </article>
         </div>
+
+        <article class="panel-card pad" style="margin-top: 15px">
+          <div class="panel-title sm"><div><p>AKTİVİTE</p><h2>Alışkanlık</h2></div></div>
+          <div class="habit-wide">
+            <div class="dua-row">
+              <div class="dua-cell"><strong>{{ fmt(d.habit.dau) }}</strong><small>DAU (öğün)</small></div>
+              <div class="dua-cell"><strong>{{ fmt(d.habit.wau) }}</strong><small>WAU (öğün)</small></div>
+              <div class="dua-cell"><strong>{{ d.habit.avgRhythmDays }}</strong><small>ort. ritim günü</small></div>
+            </div>
+            <div>
+              <p class="mini-cap">AKTİF GÜN DAĞILIMI (30g)</p>
+              <ul class="src-list tight">
+                <li v-for="b in d.habit.activeDayDistribution" :key="b.bucket">
+                  <div class="src-row"><span class="src-name">{{ b.bucket }}</span><span class="src-val">{{ fmt(b.users) }}</span></div>
+                  <div class="mini-track"><div class="mini-fill green" :style="{ width: `${pct(b.users, distTotal)}%` }" /></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </article>
       </section>
 
       <!-- ── E. Sofra paneli (event-derived) ── -->
@@ -217,9 +208,9 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
         <div class="triple-grid" style="margin-top: 15px">
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok görülen ekranlar</h2></div></div>
-            <ul v-if="d.sofra.topScreens.length" class="src-list tight">
+            <ul v-if="d.sofra.topScreens.length" class="src-list tight telemetry">
               <li v-for="s in d.sofra.topScreens" :key="s.key">
-                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
+                <div class="src-row"><span class="src-name" :title="s.key">{{ screenLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
                 <div class="mini-track"><div class="mini-fill green" :style="{ width: `${pct(s.count, d.sofra.topScreens[0]?.count ?? 1)}%` }" /></div>
               </li>
             </ul>
@@ -228,9 +219,9 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
 
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok açılan alt sayfalar</h2></div></div>
-            <ul v-if="d.sofra.topSheets.length" class="src-list tight">
+            <ul v-if="d.sofra.topSheets.length" class="src-list tight telemetry">
               <li v-for="s in d.sofra.topSheets" :key="s.key">
-                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
+                <div class="src-row"><span class="src-name" :title="s.key">{{ sheetLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
                 <div class="mini-track"><div class="mini-fill blue" :style="{ width: `${pct(s.count, d.sofra.topSheets[0]?.count ?? 1)}%` }" /></div>
               </li>
             </ul>
@@ -239,9 +230,9 @@ const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mi
 
           <article class="panel-card pad">
             <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En sık dokunuşlar</h2></div></div>
-            <ul v-if="d.sofra.topTaps.length" class="src-list tight">
+            <ul v-if="d.sofra.topTaps.length" class="src-list tight telemetry">
               <li v-for="s in d.sofra.topTaps" :key="s.key">
-                <div class="src-row"><span class="src-name mono">{{ s.key }}</span><span class="src-val">{{ fmt(s.count) }}</span></div>
+                <div class="src-row"><span class="src-name" :title="s.key">{{ tapLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}</span></div>
                 <div class="mini-track"><div class="mini-fill amber" :style="{ width: `${pct(s.count, d.sofra.topTaps[0]?.count ?? 1)}%` }" /></div>
               </li>
             </ul>

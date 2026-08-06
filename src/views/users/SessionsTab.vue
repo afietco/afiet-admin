@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import Tag from 'primevue/tag'
 import SourceChip from './SourceChip.vue'
-import { label, type Provenance, type UserDetail } from '../../services/users'
+import { label, type Provenance, type SessionEvent, type UserDetail } from '../../services/users'
+import { eventLabel, sheetLabel, tapLabel } from '../../services/telemetry-labels'
 import { date, dateTime, duration, num, pct, timeFmt } from './shared'
 
 const props = defineProps<{ detail: UserDetail; sources: Record<keyof UserDetail, Provenance> }>()
@@ -30,6 +31,28 @@ const fromNotification = computed(() => Math.round(sessions.value.summary.fromNo
 
 function toggle(id: string) {
   openId.value = openId.value === id ? null : id
+}
+
+/** Ham telemetri olayını akışta okunur tek satıra çevirir; ham ad tooltip'te kalır. */
+function eventLine(event: SessionEvent): { title: string; meta: string | null } {
+  const p = event.props
+  const sec = typeof p.duration_sec === 'number' ? p.duration_sec : null
+  switch (event.name) {
+    case 'session_start':
+      return { title: p.from_notification ? 'Oturum başladı (bildirimden)' : 'Oturum başladı', meta: null }
+    case 'session_end':
+      return { title: 'Oturum bitti', meta: sec != null ? duration(sec) : null }
+    case 'screen_view':
+      return { title: `Ekran: ${label.screen(String(p.screen ?? ''))}`, meta: sec != null ? duration(sec) : null }
+    case 'sheet_view':
+      return { title: `Alt sayfa: ${sheetLabel(String(p.sheet ?? ''))}`, meta: null }
+    case 'sheet_closed':
+      return { title: `Alt sayfa kapandı: ${sheetLabel(String(p.sheet ?? ''))}`, meta: sec != null ? duration(sec) : null }
+    case 'ui_tap':
+      return { title: `Dokunuş: ${tapLabel(String(p.target ?? ''))}`, meta: null }
+    default:
+      return { title: eventLabel(event.name), meta: p.screen ? label.screen(String(p.screen)) : null }
+  }
 }
 </script>
 
@@ -90,7 +113,7 @@ function toggle(id: string) {
       <ul class="src-list tight">
         <li v-for="row in sessions.screens" :key="row.screen">
           <div class="src-row">
-            <span class="src-name">{{ row.label }}</span>
+            <span class="src-name" :title="row.screen">{{ label.screen(row.screen) }}</span>
             <span class="src-val">{{ num(row.opens) }} açılış · {{ duration(row.avgSec) }} ortalama</span>
           </div>
           <div class="mini-track"><div class="mini-fill green" :style="{ width: `${String(pct(row.opens, screenMax))}%` }" /></div>
@@ -116,8 +139,8 @@ function toggle(id: string) {
               <span class="timeline-time">{{ timeFmt.format(new Date(event.at)) }}</span>
               <span class="timeline-dot" />
               <div class="timeline-body">
-                <strong>{{ event.name }}</strong>
-                <small v-if="event.props.screen">{{ label.screen(String(event.props.screen)) }}</small>
+                <strong :title="event.name">{{ eventLine(event).title }}</strong>
+                <small v-if="eventLine(event).meta">{{ eventLine(event).meta }}</small>
               </div>
             </li>
           </ol>
