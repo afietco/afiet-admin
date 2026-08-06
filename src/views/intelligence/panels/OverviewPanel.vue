@@ -107,7 +107,7 @@ const drift = computed(() => {
 </template>
 
 <style scoped>
-.panel-stack { display: grid; gap: 16px; }
+.panel-stack { display: grid; gap: 16px; padding: 24px; }
 
 .fact-card { padding: 20px 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px 26px; margin: 0; }

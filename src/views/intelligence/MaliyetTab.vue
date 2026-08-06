@@ -115,7 +115,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.cost { display: flex; flex-direction: column; gap: 1rem; }
+.cost { display: flex; flex-direction: column; gap: 1rem; padding: 24px; }
 .cost__head { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; justify-content: space-between; }
 .cost__summary { margin: 0; color: var(--p-text-muted-color); font-variant-numeric: tabular-nums; }
 .cost__note { margin: 0; font-size: .85rem; line-height: 1.55; color: var(--p-text-muted-color); }

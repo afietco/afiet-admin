@@ -156,7 +156,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.zeka-tab { display: grid; gap: 18px; }
+.zeka-tab { display: grid; gap: 18px; padding: 24px; }
 
 .quota-card { padding: 17px 19px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .quota-head { display: flex; gap: 14px; align-items: center; justify-content: space-between; }

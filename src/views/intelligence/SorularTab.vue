@@ -231,7 +231,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.afi-tab { display: grid; gap: 18px; }
+.afi-tab { display: grid; gap: 18px; padding: 24px; }
 .afi-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 
 .afi-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
