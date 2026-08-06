@@ -9,14 +9,14 @@
  * değişmez; ekranda "veri canlı değil" rozetiyle birlikte durur.
  *
  * ── Adlandırma kararı ─────────────────────────────────────────────────────
- * Kademe adları zorluk sözcüğü değil. afiet'in dili sofra dilidir ve kademe
- * KULLANICIYI değil PORSİYONU adlandırmalı: "çırak" insanı etiketler,
- * "tadımlık" tabağı tarif eder. Aynı yemek üç porsiyonda servis edilir:
+ * Kademe adları zorluk sözcüğü değil (easy/medium/hard ekranda hiç geçmez).
+ * afiet'in dili mutfak dilidir; kademeler mutfakta ustalaşmanın bilinen üç
+ * basamağını ödünç alır:
  *
- *   Tadımlık → Doyumluk → Şölen
+ *   Çırak → Kalfa → Usta
  *
- * Üçü de aynı metriği sayar; değişen yalnız porsiyonun büyüklüğüdür. Bu
- * yüzden aksiyon düğmesi de üç kademede aynıdır (bkz. questActions.ts).
+ * Üçü de aynı metriği sayar; değişen yalnız eşiğin büyüklüğüdür. Bu yüzden
+ * aksiyon düğmesi de üç kademede aynıdır (bkz. questActions.ts).
  *
  * ── BACKEND BUNU ŞÖYLE DÖNMELİ ────────────────────────────────────────────
  * GET /v1/admin/quests bugünkü gövdeyi korur, iki alan ekler:
@@ -25,8 +25,8 @@
  *   quests[].reach: QuestReach | null  // kademe metrikleri, hesaplanmadıysa null
  *
  * Kurallar:
- *  1. `tiers` her zaman 3 uzunluğunda ve `key` sırası tadimlik → doyumluk →
- *     solen. Sıra dizinin kendisinden okunur, ayrı bir `order` alanı yok.
+ *  1. `tiers` her zaman 3 uzunluğunda ve `key` sırası cirak → kalfa →
+ *     usta. Sıra dizinin kendisinden okunur, ayrı bir `order` alanı yok.
  *  2. `target`, `xpReward`, `pouchReward` üç kademede de KESİN ARTAN. Sunucu
  *     bunu doğrulamalı; eşit ya da azalan bir merdiven 422 dönmeli, çünkü
  *     ikinci kademesi birincisinden ucuz bir görev kullanıcıda geri gitme
@@ -37,7 +37,7 @@
  *     eşiği geçtiğiyle belirlenir. Yani mevcut `quest_progress` tablosu
  *     değişmeden kalabilir, yalnız "alındı" kaydı kademe anahtarını taşımalı.
  *  5. Mevcut tek eşikli görevler göçte birinci kademeye yerleşir
- *     (target/xpReward olduğu gibi tadimlik olur); üst iki kademe migration'da
+ *     (target/xpReward olduğu gibi cirak olur); üst iki kademe migration'da
  *     üretilir ya da panelden yazılır.
  *
  * POST/PUT gövdesi `tiers` alır; `target` ve `xpReward` kök alanları geriye
@@ -50,12 +50,12 @@
  * "puan" ya da "jeton" denmez.
  */
 
-export type QuestTierKey = 'tadimlik' | 'doyumluk' | 'solen'
+export type QuestTierKey = 'cirak' | 'kalfa' | 'usta'
 
 /** Kademe tanımı. Görev başına tam üç tane, artan sırada. */
 export type QuestTier = {
   key: QuestTierKey
-  /** Aynı metrik, artan eşik. tadımlık < doyumluk < şölen. */
+  /** Aynı metrik, artan eşik. çırak < kalfa < usta. */
   target: number
   /** Kademe alındığında yazılan tecrübe. Artan. */
   xpReward: number
@@ -94,23 +94,23 @@ export type QuestReach = {
   computedAt: string
 }
 
-export const TIER_ORDER: QuestTierKey[] = ['tadimlik', 'doyumluk', 'solen']
+export const TIER_ORDER: QuestTierKey[] = ['cirak', 'kalfa', 'usta']
 
 export const TIER_META: Record<QuestTierKey, { label: string; glyph: string; blurb: string }> = {
-  tadimlik: {
-    label: 'Tadımlık',
+  cirak: {
+    label: 'Çırak',
     glyph: '🥄',
-    blurb: 'İlk tat. Bir oturuşta erişilir, alışkanlığın kapısını aralar.',
+    blurb: 'İlk kademe. Bir oturuşta erişilir, alışkanlığın kapısını aralar.',
   },
-  doyumluk: {
-    label: 'Doyumluk',
-    glyph: '🍲',
-    blurb: 'Karnını doyuran porsiyon. Birkaç haftalık ritim ister.',
+  kalfa: {
+    label: 'Kalfa',
+    glyph: '🍳',
+    blurb: 'Eli işe alışmış kademe. Birkaç haftalık ritim ister.',
   },
-  solen: {
-    label: 'Şölen',
-    glyph: '🎉',
-    blurb: 'Sofranın en geniş hali. Uzun soluklu, anlatmaya değer.',
+  usta: {
+    label: 'Usta',
+    glyph: '👨‍🍳',
+    blurb: 'En geniş kademe. Uzun soluklu, anlatmaya değer.',
   },
 }
 

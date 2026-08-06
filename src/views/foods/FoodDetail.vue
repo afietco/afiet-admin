@@ -112,7 +112,7 @@ const atwater = computed(() => {
         <button type="button" class="lighter-link" @click="emit('jump', food.lighterAlternative!)">
           <i class="pi pi-arrow-down-right" aria-hidden="true" />
           <span>{{ food.lighterAlternative }}</span>
-          <small>daha hafif alternatif — aramada aç</small>
+          <small>daha hafif alternatif, aramada aç</small>
         </button>
       </section>
 

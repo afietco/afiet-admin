@@ -5,9 +5,15 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import PageHeader from '../../components/PageHeader.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import CatalogPulse from './CatalogPulse.vue'
+import CurationTab from './CurationTab.vue'
 import FacetRail from './FacetRail.vue'
 import FoodCard from './FoodCard.vue'
 import FoodDetail from './FoodDetail.vue'
@@ -23,6 +29,14 @@ const SEARCH_DEBOUNCE = 250
 
 const toast = useToast()
 const confirm = useConfirm()
+
+const activeTab = ref('katalog')
+/**
+ * Kürasyon sekmesi ilk açılışta monte edilir. Sekmeye girilmeden yüklenirse
+ * her katalog ziyaretinde henüz açılmamış bir uca istek atılırdı.
+ */
+const curationMounted = ref(false)
+watch(activeTab, (value) => { if (value === 'kurasyon') curationMounted.value = true })
 
 const facets = ref<FoodFacets | null>(null)
 const filters = reactive<FoodFilters>(emptyFilters())
@@ -163,6 +177,12 @@ async function save(input: FoodInput) {
   }
 }
 
+/** Kürasyon sekmesinden kataloğa kayıt girdi; liste ve dağılım bayat kalmasın. */
+async function afterCuration() {
+  invalidateFoodCache()
+  await Promise.all([load(), loadFacets()])
+}
+
 function remove(food: Food) {
   confirm.require({
     header: 'Besini sil',
@@ -211,71 +231,87 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="İÇERİK"
       title="Besin kataloğu"
-      description="Uygulamanın ortak besin dili: ölçüler, makrolar, diyet uyumu ve denge bağları."
+      description="Uygulamanın ortak besin dili: ölçüler, makrolar, diyet uyumu ve denge bağları. Kürasyon sekmesi kullanıcıların kendi ekledikleri besinleri kataloğa aday olarak gösterir."
     >
-      <Button label="Yeni besin" icon="pi pi-plus" @click="createFood" />
+      <Button v-if="activeTab === 'katalog'" label="Yeni besin" icon="pi pi-plus" @click="createFood" />
     </PageHeader>
 
-    <CatalogPulse :facets="facets" />
+    <Tabs v-model:value="activeTab" class="catalog-tabs">
+      <TabList>
+        <Tab value="katalog">Katalog</Tab>
+        <Tab value="kurasyon">Kürasyon</Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="katalog">
+          <CatalogPulse :facets="facets" />
 
-    <div class="catalog-body">
-      <FacetRail :facets="facets" :filters="filters" @pick="pick" @reset="reset" />
+          <div class="catalog-body">
+            <FacetRail :facets="facets" :filters="filters" @pick="pick" @reset="reset" />
 
-      <section class="catalog-results">
-        <div class="catalog-toolbar">
-          <span class="search-box">
-            <i class="pi pi-search" aria-hidden="true" />
-            <InputText v-model="searchText" placeholder="Ad veya takma adla ara…" />
-          </span>
-          <Select v-model="filters.sort" :options="sortOptions" option-label="text" option-value="value" />
-          <Button
-            :icon="filters.order === 'desc' ? 'pi pi-sort-amount-down' : 'pi pi-sort-amount-up'"
-            severity="secondary" outlined
-            :aria-label="filters.order === 'desc' ? 'Azalan sıralama' : 'Artan sıralama'"
-            @click="filters.order = filters.order === 'desc' ? 'asc' : 'desc'"
-          />
-          <span class="result-count">
-            <template v-if="loading && !firstLoad"><i class="pi pi-spin pi-spinner" aria-hidden="true" /> </template>
-            {{ number(total) }} besin
-            <template v-if="filterCount"> · {{ filterCount }} filtre</template>
-          </span>
-        </div>
+            <section class="catalog-results">
+              <div class="catalog-toolbar">
+                <span class="search-box">
+                  <i class="pi pi-search" aria-hidden="true" />
+                  <InputText v-model="searchText" placeholder="Ad veya takma adla ara…" />
+                </span>
+                <Select v-model="filters.sort" :options="sortOptions" option-label="text" option-value="value" />
+                <Button
+                  :icon="filters.order === 'desc' ? 'pi pi-sort-amount-down' : 'pi pi-sort-amount-up'"
+                  severity="secondary" outlined
+                  :aria-label="filters.order === 'desc' ? 'Azalan sıralama' : 'Artan sıralama'"
+                  @click="filters.order = filters.order === 'desc' ? 'asc' : 'desc'"
+                />
+                <span class="result-count">
+                  <template v-if="loading && !firstLoad"><i class="pi pi-spin pi-spinner" aria-hidden="true" /> </template>
+                  {{ number(total) }} besin
+                  <template v-if="filterCount"> · {{ filterCount }} filtre</template>
+                </span>
+              </div>
 
-        <ul class="macro-key" aria-label="Makro çubuğu göstergesi">
-          <li><span class="legend-swatch macro-protein" aria-hidden="true" /> Protein</li>
-          <li><span class="legend-swatch macro-carb" aria-hidden="true" /> Karbonhidrat</li>
-          <li><span class="legend-swatch macro-fat" aria-hidden="true" /> Yağ</li>
-          <li class="macro-key-note">çubuk enerji payını gösterir</li>
-        </ul>
+              <ul class="macro-key" aria-label="Makro çubuğu göstergesi">
+                <li><span class="legend-swatch macro-protein" aria-hidden="true" /> Protein</li>
+                <li><span class="legend-swatch macro-carb" aria-hidden="true" /> Karbonhidrat</li>
+                <li><span class="legend-swatch macro-fat" aria-hidden="true" /> Yağ</li>
+                <li class="macro-key-note">çubuk enerji payını gösterir</li>
+              </ul>
 
-        <div v-if="firstLoad" class="food-grid" aria-hidden="true">
-          <div v-for="n in 12" :key="n" class="food-card skeleton-card" />
-        </div>
+              <div v-if="firstLoad" class="food-grid" aria-hidden="true">
+                <div v-for="n in 12" :key="n" class="food-card skeleton-card" />
+              </div>
 
-        <EmptyState
-          v-else-if="!rows.length && !failed"
-          icon="pi pi-book"
-          title="Besin bulunamadı"
-          description="Filtreleri temizle ya da kataloğa yeni bir besin ekle."
-        />
+              <EmptyState
+                v-else-if="!rows.length && !failed"
+                icon="pi pi-book"
+                title="Besin bulunamadı"
+                description="Filtreleri temizle ya da kataloğa yeni bir besin ekle."
+              />
 
-        <div v-else-if="failed && !rows.length" class="error-banner">
-          <i class="pi pi-exclamation-circle" aria-hidden="true" />
-          <span>{{ failed }}</span>
-          <button type="button" @click="load()">Yeniden dene</button>
-        </div>
+              <div v-else-if="failed && !rows.length" class="error-banner">
+                <i class="pi pi-exclamation-circle" aria-hidden="true" />
+                <span>{{ failed }}</span>
+                <button type="button" @click="load()">Yeniden dene</button>
+              </div>
 
-        <div v-else class="food-grid" :class="{ dimmed: loading }">
-          <FoodCard v-for="food in rows" :key="food.id" :food="food" @open="openDetail(food)" />
-        </div>
+              <div v-else class="food-grid" :class="{ dimmed: loading }">
+                <FoodCard v-for="food in rows" :key="food.id" :food="food" @open="openDetail(food)" />
+              </div>
 
-        <div v-if="hasMore" ref="sentinel" class="grid-sentinel">
-          <Button v-if="!loadingMore" label="Daha fazla göster" severity="secondary" outlined @click="loadMore" />
-          <span v-else class="loading-more"><i class="pi pi-spin pi-spinner" aria-hidden="true" /> Yükleniyor…</span>
-        </div>
-        <p v-else-if="rows.length" class="grid-end">Tüm sonuçlar gösteriliyor.</p>
-      </section>
-    </div>
+              <div v-if="hasMore" ref="sentinel" class="grid-sentinel">
+                <Button v-if="!loadingMore" label="Daha fazla göster" severity="secondary" outlined @click="loadMore" />
+                <span v-else class="loading-more"><i class="pi pi-spin pi-spinner" aria-hidden="true" /> Yükleniyor…</span>
+              </div>
+              <p v-else-if="rows.length" class="grid-end">Tüm sonuçlar gösteriliyor.</p>
+            </section>
+          </div>
+        </TabPanel>
+
+        <TabPanel value="kurasyon">
+          <!-- Kullanıcıların kendi ekledikleri besinlerden kataloğa alınacakların
+               elenmesi. Sekmeye girilmeden monte edilmez. -->
+          <CurationTab v-if="curationMounted" :facets="facets" @catalog-changed="afterCuration" />
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
 
     <FoodDetail
       v-model:visible="detailOpen"
@@ -294,3 +330,12 @@ onBeforeUnmount(() => {
     />
   </div>
 </template>
+
+<style scoped>
+/* Sekme şeridi sayfanın üstünde çıplak durur: katalog gövdesi tam genişlik
+   ister, kart içine alınması ızgarayı daraltırdı. */
+.catalog-tabs :deep(.p-tablist) { margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+.catalog-tabs :deep(.p-tablist-tab-list) { background: transparent; }
+.catalog-tabs :deep(.p-tab) { padding: 11px 16px; font-size: 13px; font-weight: 800; }
+.catalog-tabs :deep(.p-tabpanels) { padding: 0; background: transparent; }
+</style>

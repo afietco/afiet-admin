@@ -122,7 +122,7 @@ function reachOf(quest: Quest): QuestReach {
 function tierTargets(quest: Quest) {
   return reachOf(quest).tiers.map((tier) => tier.target)
 }
-/** Şölen kademesini tamamlayanın tüm havuza oranı: görevin gerçek zirvesi. */
+/** Usta kademesini tamamlayanın tüm havuza oranı: görevin gerçek zirvesi. */
 function topShare(quest: Quest) {
   const reach = reachOf(quest)
   const top = reach.tiers[reach.tiers.length - 1]
@@ -317,7 +317,7 @@ onMounted(load)
     <Message severity="info" :closable="false" icon="pi pi-flask">
       <strong>Kademeler ve erişim sayıları mock.</strong>
       Sunucu bugün görev başına tek eşik dönüyor; satırı açınca görünen üç kademe
-      (Tadımlık · Doyumluk · Şölen) ve tüm yüzdeler panelde yerel üretiliyor, canlı
+      (Çırak · Kalfa · Usta) ve tüm yüzdeler panelde yerel üretiliyor, canlı
       veri değil. Kaydetme akışı hâlâ tek eşiği yazar. Backend'den beklenen gövde
       src/views/quests/questTiers.ts dosyasının başında yazılı.
     </Message>
@@ -403,7 +403,7 @@ onMounted(load)
                 :title="tierNameAt(index)"
               >{{ value }}</span>
             </div>
-            <small class="ladder-note">tadımlık · doyumluk · şölen</small>
+            <small class="ladder-note">çırak · kalfa · usta</small>
           </template>
         </Column>
         <Column header="Ödül merdiveni" style="min-width: 10rem">
@@ -443,7 +443,7 @@ onMounted(load)
                   :style="{ width: `${Math.round(reachOf(data).tiers[0].stats.completionRate * 100)}%` }"
                 />
               </div>
-              <small>tadımlık · şölene varan {{ percent(topShare(data)) }}</small>
+              <small>çırak · ustae varan {{ percent(topShare(data)) }}</small>
             </div>
           </template>
         </Column>
@@ -621,12 +621,12 @@ onMounted(load)
         <div class="form-field">
           <label for="quest-target">Hedef *</label>
           <InputNumber id="quest-target" v-model="form.target" :min="1" fluid />
-          <small>Tadımlık kademesinin eşiği; üst iki kademe bundan türetilir.</small>
+          <small>Çırak kademesinin eşiği; üst iki kademe bundan türetilir.</small>
         </div>
         <div class="form-field">
           <label for="quest-xp">Tecrübe ödülü</label>
           <InputNumber id="quest-xp" v-model="form.xpReward" :min="0" suffix=" XP" fluid />
-          <small>Tadımlık kademesinin ödülü.</small>
+          <small>Çırak kademesinin ödülü.</small>
         </div>
 
         <div class="section-rule span-4">
@@ -651,7 +651,7 @@ onMounted(load)
           </div>
         </div>
         <p class="ladder-caption span-4">
-          Üç kademe aynı metriği sayar, yalnız porsiyon büyür. Eşikler bugün yukarıdaki tek
+          Üç kademe aynı metriği sayar, yalnız eşik büyür. Eşikler bugün yukarıdaki tek
           hedeften hesaplanıyor ve kaydedilmiyor: sunucu kademe alanlarını dönmeye
           başlayana kadar bu bölüm salt okunur bir öneridir. İkram kesesi ödülü sohbet
           hakkı adedidir, para değil.

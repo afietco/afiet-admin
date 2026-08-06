@@ -58,3 +58,229 @@ export type GrowthData = {
     topTaps: UsageRow[]
   }
 }
+
+// ── Sofra paneli türetmesi ───────────────────────────────────────────────────
+//
+// DOĞRULAMA (5 Ağu 2026, dev uca gerçek istek):
+// `sofra.instrumented` 23/37 diyor ama `sofra.stats` YALNIZ 6 satır döndürüyor.
+// Sebep uçta: backend'de `sofraHeadline` elle yazılmış 6 elemanlı bir liste
+// (afiet-backend/internal/store/growth.go). Yani "23 event bağlı" ile "6 event
+// gösteriliyor" arasındaki fark bir görünüm eksiği değil, uç eksiği.
+//
+// Panelde uydurma yapmadan gösterilebilecek TEK genişleme, yanıtın kendi
+// içinde zaten duran ama kart olarak çizilmeyen event izleridir:
+//
+//   sheet_view    → topSheets satır sayıları (ilk 8 ile sınırlı → ALT SINIR)
+//   sheet_closed  → topSheets içindeki avgSec'in varlığı (süre ölçülüyor)
+//   ui_tap        → topTaps satır sayıları (ilk 8 ile sınırlı → ALT SINIR)
+//   session_end   → habit.sessions.avgSessionSec (ortalama oturum süresi)
+//
+// Bunlar "türetilmiş" (origin: 'derived') olarak işaretlenir ve kartta kaynağı
+// yazar. Geri kalan bağlı event'lerin ADLARI da SAYILARI da yanıtta yok; panel
+// onları isimlendiremez, yalnız kaç tane olduğunu söyler.
+//
+// BACKEND İŞİ (bu panel için gereken uç değişikliği):
+//   `GET /v1/admin/growth` → `sofra.stats` sabit 6'lık `sofraHeadline` yerine
+//   `eventDictionary`in TAMAMINI dönsün (her ad için 7 günlük sayı + toplam,
+//   atılmamışlar value:null / live:false). O gün burada tek satır değişmez:
+//   kartlar zaten `stats` üzerinden çizilir, kategori haritası hazırdır ve
+//   bilinmeyen adlar 'diger' grubuna düşer.
+
+/** Kart grubu. Sözlükte olup bu listede olmayan ad 'diger'e düşer. */
+export type SofraCategory = 'oturum' | 'dongu' | 'denge' | 'sosyal' | 'afi' | 'bildirim' | 'diger'
+
+export const SOFRA_CATEGORY_LABELS: Record<SofraCategory, string> = {
+  oturum: 'Oturum ve gezinme',
+  dongu: 'Kayıt döngüsü',
+  denge: 'Denge ve ritim',
+  sosyal: 'Sofra ve sosyal',
+  afi: 'Afi',
+  bildirim: 'Bildirim',
+  diger: 'Diğer',
+}
+
+/**
+ * Event adı → kategori. Backend'in `eventDictionary` listesinin tamamı burada
+ * karşılanır; uç yarın 6 yerine 37 satır dönerse gruplama kendiliğinden çalışır.
+ */
+const CATEGORY_OF: Record<string, SofraCategory> = {
+  session_start: 'oturum', session_end: 'oturum', screen_view: 'oturum',
+  sheet_view: 'oturum', sheet_closed: 'oturum', ui_tap: 'oturum',
+  meal_logged: 'dongu', water_logged: 'dongu', onboarding_completed: 'dongu',
+  measurement_added: 'dongu',
+  balance_viewed: 'denge', afiyet_day_completed: 'denge',
+  move_offered: 'denge', move_done: 'denge', move_dismissed: 'denge',
+  week_summary_opened: 'denge', rhythm_week_completed: 'denge',
+  pause_started: 'denge', pause_ended: 'denge',
+  nudge_shown: 'bildirim', nudge_acted: 'bildirim', greeting_sent: 'bildirim',
+  reaction_sent: 'sosyal',
+  group_public_on: 'sosyal', group_public_off: 'sosyal',
+  sofra_visibility_on: 'sosyal', sofra_visibility_off: 'sosyal',
+  afi_celebration_shown: 'afi', afi_assist_used: 'afi',
+  afi_suggestion_accepted: 'afi', afi_suggestion_rejected: 'afi',
+  afi_guide_started: 'afi', afi_guide_step_shown: 'afi',
+  afi_guide_completed: 'afi', afi_guide_ended: 'afi',
+  afi_food_suggest: 'afi', afi_photo_turn: 'afi',
+}
+
+export type SofraCard = {
+  key: string
+  label: string
+  category: SofraCategory
+  /** null → uçta sayı yok; kart "—" gösterir. */
+  value: number | null
+  unit: string
+  /** 'duration' olanlar saniyedir, view `duration()` ile biçimler. */
+  format: 'count' | 'duration'
+  live: boolean
+  /** 'stat' → uçtaki sayaç · 'derived' → yanıttan türetildi (kaynağı note'ta). */
+  origin: 'stat' | 'derived'
+  /** true → gösterilen sayı bir ALT SINIR (ilk 8'lik listeden toplandı). */
+  atLeast: boolean
+  note: string
+}
+
+export type SofraGroup = { key: SofraCategory; label: string; cards: SofraCard[] }
+
+export type SofraRatio = { key: string; label: string; value: number; hint: string; atLeast: boolean }
+
+export type SofraBoard = {
+  groups: SofraGroup[]
+  /** Uçtan `live: false` gelen sözlük kartları (soluk bölümde durur). */
+  dark: SofraCard[]
+  instrumented: number
+  dictionaryTotal: number
+  /** Panelde izi (sayısı ya da süresi) görünen tekil event adı sayısı. */
+  visible: number
+  /** Bağlı ama uç sayısını döndürmediği için panelde adı bile geçmeyen event. */
+  countedButHidden: number
+  /** Sözlükte olup hiç atılmamış event. */
+  neverFired: number
+  ratios: SofraRatio[]
+  /** İlk 8 ekranın toplam screen_view içindeki payı (%); hesaplanamazsa null. */
+  topScreenShare: number | null
+}
+
+/** Backend'in kullanım sorgularındaki `LIMIT 8`. Liste tam 8 satırsa toplam kesilmiştir. */
+const USAGE_LIMIT = 8
+
+const sumCount = (rows: UsageRow[]) => rows.reduce((s, r) => s + r.count, 0)
+
+/** Süre taşıyan satırların, açılış sayısıyla ağırlıklı ortalaması (sn). */
+function weightedSec(rows: UsageRow[]): number | null {
+  let num = 0
+  let den = 0
+  for (const r of rows) {
+    if (r.avgSec == null || r.count <= 0) continue
+    num += r.avgSec * r.count
+    den += r.count
+  }
+  return den > 0 ? Math.round(num / den) : null
+}
+
+/**
+ * Oran biçimi: 1'in altındaki değerler 1 ondalığa yuvarlanınca "0" görünüp
+ * "hiç yok" gibi okunuyordu (3 dokunuş ÷ 94 oturum = 0,03). Küçük oranlarda
+ * iki ondalık tutulur.
+ */
+const roundRatio = (n: number) => (n < 1 ? Math.round(n * 100) / 100 : Math.round(n * 10) / 10)
+
+/**
+ * Sofra panelinin kart tahtası. Kaynak YALNIZ `/v1/admin/growth` yanıtıdır;
+ * hiçbir sayı uydurulmaz, türetilenlerin kaynağı kartta yazar.
+ */
+export function buildSofraBoard(d: GrowthData): SofraBoard {
+  const s = d.sofra
+  const cards: SofraCard[] = []
+  const dark: SofraCard[] = []
+
+  for (const stat of s.stats) {
+    const card: SofraCard = {
+      key: stat.key,
+      label: stat.label,
+      category: CATEGORY_OF[stat.key] ?? 'diger',
+      value: stat.value,
+      unit: stat.unit ?? '',
+      format: 'count',
+      live: stat.live,
+      origin: 'stat',
+      atLeast: false,
+      note: 'uçtaki sayaç',
+    }
+    if (stat.live) cards.push(card)
+    else dark.push(card)
+  }
+
+  // ── Yanıtın içinde duran, kart olarak çizilmemiş event izleri ──
+  const sheetRows = s.topSheets
+  if (sheetRows.length) {
+    cards.push({
+      key: 'sheet_view', label: 'Alt sayfa açıldı', category: 'oturum',
+      value: sumCount(sheetRows), unit: '/7g', format: 'count', live: true, origin: 'derived',
+      atLeast: sheetRows.length >= USAGE_LIMIT,
+      note: 'alt sayfa listesinden toplandı',
+    })
+    const sec = weightedSec(sheetRows)
+    if (sec !== null) {
+      cards.push({
+        key: 'sheet_closed', label: 'Alt sayfada kalış', category: 'oturum',
+        value: sec, unit: '', format: 'duration', live: true, origin: 'derived',
+        atLeast: false,
+        note: 'açılış sayısıyla ağırlıklı ortalama; sheet_closed sayısı uçtan dönmüyor',
+      })
+    }
+  }
+  if (s.topTaps.length) {
+    cards.push({
+      key: 'ui_tap', label: 'Dokunuş', category: 'oturum',
+      value: sumCount(s.topTaps), unit: '/7g', format: 'count', live: true, origin: 'derived',
+      atLeast: s.topTaps.length >= USAGE_LIMIT,
+      note: 'dokunuş listesinden toplandı',
+    })
+  }
+  if (d.habit.sessions.avgSessionSec > 0) {
+    cards.push({
+      key: 'session_end', label: 'Oturum kapandı', category: 'oturum',
+      value: d.habit.sessions.avgSessionSec, unit: '', format: 'duration', live: true, origin: 'derived',
+      atLeast: false,
+      note: 'ortalama oturum süresi; kapanış sayısı uçtan dönmüyor',
+    })
+  }
+
+  const order: SofraCategory[] = ['oturum', 'dongu', 'denge', 'sosyal', 'afi', 'bildirim', 'diger']
+  const groups: SofraGroup[] = order
+    .map((key) => ({ key, label: SOFRA_CATEGORY_LABELS[key], cards: cards.filter((c) => c.category === key) }))
+    .filter((g) => g.cards.length > 0)
+
+  const visible = new Set(cards.map((c) => c.key)).size
+  const byKey = (key: string) => cards.find((c) => c.key === key)
+  const starts = byKey('session_start')?.value ?? 0
+
+  const ratios: SofraRatio[] = []
+  if (starts > 0) {
+    const per = (card: SofraCard | undefined, label: string, hint: string) => {
+      if (!card || card.value === null) return
+      ratios.push({ key: card.key, label, value: roundRatio(card.value / starts), hint, atLeast: card.atLeast })
+    }
+    per(byKey('screen_view'), 'Ekran / oturum', 'screen_view / session_start')
+    per(byKey('sheet_view'), 'Alt sayfa / oturum', 'sheet_view / session_start')
+    per(byKey('ui_tap'), 'Dokunuş / oturum', 'ui_tap / session_start')
+  }
+
+  const screenTotal = byKey('screen_view')?.value ?? 0
+  const topScreenShare = screenTotal > 0 && s.topScreens.length
+    ? Math.round((sumCount(s.topScreens) / screenTotal) * 100)
+    : null
+
+  return {
+    groups,
+    dark,
+    instrumented: s.instrumented,
+    dictionaryTotal: s.dictionaryTotal,
+    visible,
+    countedButHidden: Math.max(0, s.instrumented - visible),
+    neverFired: Math.max(0, s.dictionaryTotal - s.instrumented),
+    ratios,
+    topScreenShare,
+  }
+}

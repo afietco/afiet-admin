@@ -13,7 +13,7 @@ import { TIER_META, pouchLabel, tierLadder } from './quests/questTiers'
  *
  * Kademe merdiveni MOCK: sunucu bugün tek eşik dönüyor, üç porsiyon panelde
  * türetiliyor (views/quests/questTiers.ts). Önizlemenin işi burada da aynı:
- * "Tadımlık'tan Şölen'e giden bu üç satır telefonda sığıyor mu, ödül farkı
+ * "Çırak'tan Usta'e giden bu üç satır telefonda sığıyor mu, ödül farkı
  * ilerleme hissi veriyor mu" sorusuna bakılsın diye duruyor.
  */
 const props = defineProps<{ form: QuestInput }>()
