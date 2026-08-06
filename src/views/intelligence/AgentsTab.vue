@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import Button from 'primevue/button'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
 import Tag from 'primevue/tag'
 import {
   agentCopy, effortLabel, mergeAgents, searchService, searchTool, wiringMeta, zekaApi,
@@ -8,8 +12,14 @@ import {
 
 // Ajanlar bağlı olanlar önce gelecek şekilde sıralanıyor: panelin ilk ekranı
 // "şu an üründe ne çalışıyor" sorusunu cevaplamalı, Foundry envanterini değil.
+// Tablo removable-sort ile geldiği için kullanıcı sıralamayı kaldırdığında bu
+// varsayılan düzen geri gelir.
 const order = { live: 0, partial: 1, unwired: 2 }
 
+/** Paginator bu eşiğin üstünde açılır: 10-20 satır tek ekranda okunur kalsın. */
+const PAGE_SIZE = 15
+
+const router = useRouter()
 const rows = ref<AgentView[]>(mergeAgents([]))
 const loading = ref(true)
 const configured = ref(true)
@@ -37,6 +47,61 @@ function indexCell(agent: AgentView) {
   return { text: 'okunmadı', unknown: true }
 }
 
+/**
+ * Tablo satırı: sıralama sütun başlığından yapıldığı için canlı alanlar burada
+ * düzleştiriliyor. Okunamayan alan boş string kalır; böylece sıralamada
+ * "okunmadı" satırları bir uçta toplanır, sahte bir değer uydurulmaz.
+ */
+type AgentRow = {
+  id: string
+  agent: AgentView
+  label: string
+  code: string
+  purpose: string
+  statusLabel: string
+  statusOrder: number
+  statusSeverity: 'success' | 'warn' | 'info'
+  model: string
+  version: string
+  pinned: boolean
+  effort: string
+  indexText: string
+  indexUnknown: boolean
+  surface: string
+  surfaceIcon: string
+}
+
+const tableRows = computed<AgentRow[]>(() => sorted.value.map((agent) => {
+  const index = indexCell(agent)
+  return {
+    id: agent.id,
+    agent,
+    label: agent.label,
+    code: agent.live?.name || agent.id,
+    purpose: agent.purpose,
+    statusLabel: wiringMeta[agent.wiring].label,
+    statusOrder: order[agent.wiring],
+    statusSeverity: severity(agent.wiring),
+    model: agent.live?.model ?? '',
+    version: agent.live?.version ?? '',
+    pinned: Boolean(agent.live?.pinnedVersion),
+    effort: effortLabel(agent.live?.effort),
+    indexText: index.text,
+    indexUnknown: index.unknown,
+    surface: agent.surface,
+    surfaceIcon: agent.surface.startsWith('Web') ? 'pi pi-globe' : 'pi pi-mobile',
+  }
+}))
+
+/** Bağlı olmayan ajan bozuk değil, sadece henüz bir yüzü yok: soluk değil ayrı. */
+function rowClass(data: AgentRow) {
+  return data.agent.wiring === 'unwired' ? 'row-unwired' : ''
+}
+
+function open(row: AgentRow) {
+  router.push({ name: 'agent-detail', params: { agentId: row.id } })
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -45,7 +110,7 @@ async function load() {
     rows.value = mergeAgents(data.items ?? [])
     configured.value = data.configured
   } catch (err) {
-    // Canlı veri gelmese de kartlar durmalı: ürün kopyası panelde yaşıyor.
+    // Canlı veri gelmese de tablo durmalı: ürün kopyası panelde yaşıyor.
     rows.value = mergeAgents([])
     error.value = err instanceof Error ? err.message : 'Ajan listesi alınamadı.'
   } finally {
@@ -62,7 +127,7 @@ onMounted(load)
       <i class="pi pi-info-circle" />
       <p>
         Bu ortamda Foundry anahtarı yapılandırılmamış. Ajanların model, sürüm, effort ve araç
-        bilgileri okunamıyor; aşağıdaki kartlar yalnız ürün tarafındaki bilgiyi gösteriyor.
+        bilgileri okunamıyor; aşağıdaki tablo yalnız ürün tarafındaki bilgiyi gösteriyor.
       </p>
     </div>
     <div v-if="error" class="notice error">
@@ -88,62 +153,101 @@ onMounted(load)
       </div>
     </div>
 
-    <div class="agent-grid">
-      <RouterLink
-        v-for="agent in sorted"
-        :key="agent.id"
-        class="agent-card"
-        :class="agent.wiring"
-        :to="{ name: 'agent-detail', params: { agentId: agent.id } }"
+    <section class="table-card agents-table">
+      <DataTable
+        :value="tableRows"
+        :loading="loading"
+        data-key="id"
+        :paginator="tableRows.length > PAGE_SIZE"
+        :rows="PAGE_SIZE"
+        :rows-per-page-options="[15, 25, 50]"
+        :row-class="rowClass"
+        removable-sort
+        row-hover
+        class="clickable-rows"
+        @row-click="open($event.data as AgentRow)"
       >
-        <div class="agent-top">
-          <div class="agent-glyph"><i class="pi pi-sparkles" /></div>
-          <div class="agent-ident">
-            <strong>{{ agent.label }}</strong>
-            <code>{{ agent.live?.name || agent.id }}</code>
-          </div>
-          <Tag :value="wiringMeta[agent.wiring].label" :severity="severity(agent.wiring)" />
-        </div>
+        <template #empty>
+          <p class="table-empty">Gösterilecek ajan yok.</p>
+        </template>
 
-        <p class="agent-purpose">{{ agent.purpose }}</p>
+        <Column header="Ajan" sortable sort-field="label" style="min-width: 17rem">
+          <template #body="{ data }">
+            <div class="user-cell" v-tooltip.top="data.purpose">
+              <span><i class="pi pi-sparkles" /></span>
+              <div>
+                <strong>{{ data.label }}</strong>
+                <small>{{ data.code }}</small>
+              </div>
+            </div>
+          </template>
+        </Column>
 
-        <dl class="agent-facts">
-          <div>
-            <dt>Sürüm</dt>
-            <dd v-if="loading" class="loading">···</dd>
-            <dd v-else-if="agent.live?.version">
-              v{{ agent.live.version }}
-              <span v-if="agent.live.pinnedVersion" class="pin" title="Sürüm sabitli">
-                <i class="pi pi-lock" />
-              </span>
-            </dd>
-            <dd v-else class="unknown">okunmadı</dd>
-          </div>
-          <div>
-            <dt>Model</dt>
-            <dd v-if="loading" class="loading">···</dd>
-            <dd v-else-if="agent.live?.model">{{ agent.live.model }}</dd>
-            <dd v-else class="unknown">okunmadı</dd>
-          </div>
-          <div>
-            <dt>Effort</dt>
-            <dd v-if="loading" class="loading">···</dd>
-            <dd v-else-if="agent.live?.effort">{{ effortLabel(agent.live.effort) }}</dd>
-            <dd v-else class="unknown">okunmadı</dd>
-          </div>
-          <div>
-            <dt>Bilgi tabanı</dt>
-            <dd v-if="loading" class="loading">···</dd>
-            <dd v-else :class="{ unknown: indexCell(agent).unknown }">{{ indexCell(agent).text }}</dd>
-          </div>
-        </dl>
+        <Column header="Durum" sortable sort-field="statusOrder" style="width: 8rem">
+          <template #body="{ data }">
+            <Tag
+              :value="data.statusLabel"
+              :severity="data.statusSeverity"
+              v-tooltip.top="data.agent.wiringNote"
+            />
+          </template>
+        </Column>
 
-        <div class="agent-foot">
-          <span class="agent-surface"><i class="pi pi-mobile" />{{ agent.surface }}</span>
-          <i class="pi pi-angle-right agent-arrow" />
-        </div>
-      </RouterLink>
-    </div>
+        <Column header="Model" sortable sort-field="model" style="min-width: 10rem">
+          <template #body="{ data }">
+            <span v-if="loading" class="cell-loading">···</span>
+            <span v-else-if="data.model" class="cell-value">{{ data.model }}</span>
+            <span v-else class="cell-unknown">okunmadı</span>
+          </template>
+        </Column>
+
+        <Column header="Sürüm" sortable sort-field="version" style="width: 7rem">
+          <template #body="{ data }">
+            <span v-if="loading" class="cell-loading">···</span>
+            <span v-else-if="data.version" class="cell-value tabular">
+              v{{ data.version }}
+              <i v-if="data.pinned" class="pi pi-lock pin" v-tooltip.top="'Sürüm sabitli'" />
+            </span>
+            <span v-else class="cell-unknown">okunmadı</span>
+          </template>
+        </Column>
+
+        <Column header="Effort" sortable sort-field="effort" style="width: 7rem">
+          <template #body="{ data }">
+            <span v-if="loading" class="cell-loading">···</span>
+            <span v-else-if="data.effort" class="cell-value">{{ data.effort }}</span>
+            <span v-else class="cell-unknown">okunmadı</span>
+          </template>
+        </Column>
+
+        <Column header="Bilgi tabanı" sortable sort-field="indexText" style="min-width: 11rem">
+          <template #body="{ data }">
+            <span v-if="loading" class="cell-loading">···</span>
+            <span v-else :class="data.indexUnknown ? 'cell-unknown' : 'cell-value'">{{ data.indexText }}</span>
+          </template>
+        </Column>
+
+        <Column header="Uygulamadaki yüzü" sortable sort-field="surface" style="min-width: 15rem">
+          <template #body="{ data }">
+            <span class="date-cell surface-cell"><i :class="data.surfaceIcon" />{{ data.surface }}</span>
+          </template>
+        </Column>
+
+        <Column header="" style="width: 4rem">
+          <template #body="{ data }">
+            <div class="row-actions">
+              <Button
+                icon="pi pi-arrow-right"
+                text
+                rounded
+                aria-label="Ajan detayı"
+                @click.stop="open(data as AgentRow)"
+              />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+    </section>
   </section>
 </template>
 
@@ -166,60 +270,24 @@ onMounted(load)
 .zeka-stat strong.warn { color: #b4541f; }
 .zeka-stat strong.idle { color: var(--muted); }
 
-/* align-items: start — kartlar kendi içerik yüksekliğinde kalır. Varsayılan
-   stretch, satırdaki en uzun karta göre kısa kartların ortasına hayalet
-   boşluk bırakıyordu (alt bilgi margin-top:auto ile dibe yapışınca). */
-.agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 15px; align-items: start; }
+/* Sekme içindeki tablo dar ekranda kırpılmasın: .table-card overflow: hidden. */
+.agents-table { overflow-x: auto; }
 
-.agent-card {
-  display: flex; flex-direction: column; gap: 13px;
-  padding: 18px; border: 1px solid var(--line); border-radius: 18px;
-  background: var(--paper); box-shadow: 0 5px 24px rgba(50, 50, 40, .035);
-  text-decoration: none; transition: transform .18s ease, box-shadow .18s ease;
-}
-.agent-card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(50, 50, 40, .09); }
-.agent-card:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+/* 10-20 satırda tarama kolaylığı için satır yüksekliği biraz daha kompakt. */
+.agents-table :deep(.p-datatable-tbody > tr > td) { padding-top: 9px; padding-bottom: 9px; }
+.agents-table :deep(.user-cell > span) { width: 32px; height: 32px; font-size: 13px; }
+.agents-table :deep(.user-cell) { gap: 10px; }
 /* Bağlı olmayan ajan soluk değil ayrı: solukluk "bozuk" okunur, oysa bunlar
    sağlam ajanlar, sadece henüz bir yüzleri yok. */
-.agent-card.unwired { background: repeating-linear-gradient(135deg, var(--paper) 0 14px, #faf7ee 14px 28px); }
+.agents-table :deep(.row-unwired > td) { background: #faf7ee; }
 
-.agent-top { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 11px; align-items: center; }
-.agent-glyph {
-  width: 38px; height: 38px; display: grid; place-items: center;
-  border-radius: 12px 12px 12px 4px; background: #dff0e7; color: var(--green-dark); font-size: 16px;
-}
-.agent-ident { min-width: 0; }
-.agent-ident strong { display: block; color: var(--ink); font-size: 15px; letter-spacing: -.01em; }
-.agent-ident code {
-  display: block; margin-top: 2px; overflow: hidden;
-  color: var(--muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap;
-}
+.cell-value { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); font-size: 12px; font-weight: 750; }
+.cell-unknown { color: #a3a59c; font-size: 12px; font-weight: 650; font-style: italic; }
+.cell-loading { color: #c2c4bb; font-size: 12px; letter-spacing: .1em; }
+.pin { color: var(--green); font-size: 9px; }
 
-.agent-purpose { margin: 0; color: #5b6159; font-size: 12.5px; line-height: 1.55; }
+.surface-cell { display: inline-flex; gap: 6px; align-items: center; }
+.surface-cell i { flex: none; font-size: 10px; color: var(--muted); }
 
-.agent-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 14px; margin: 0; }
-.agent-facts dt { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
-.agent-facts dd {
-  margin: 2px 0 0; display: flex; gap: 5px; align-items: center;
-  color: var(--ink); font-size: 12.5px; font-weight: 750; overflow-wrap: anywhere;
-}
-.agent-facts dd.unknown { color: #a3a59c; font-weight: 650; font-style: italic; }
-.agent-facts dd.loading { color: #c2c4bb; letter-spacing: .1em; }
-.pin i { color: var(--green); font-size: 9px; }
-
-.agent-foot {
-  display: flex; gap: 10px; align-items: center; justify-content: space-between;
-  margin-top: auto; padding-top: 11px; border-top: 1px solid var(--line);
-}
-.agent-surface {
-  display: flex; gap: 6px; align-items: center; min-width: 0;
-  overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap;
-}
-.agent-surface i { flex: none; font-size: 10px; }
-.agent-arrow { flex: none; color: var(--green); font-size: 12px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-card { transition: none; }
-  .agent-card:hover { transform: none; }
-}
+.table-empty { margin: 0; padding: 18px; color: var(--muted); font-size: 12px; }
 </style>

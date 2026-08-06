@@ -47,6 +47,28 @@ const formatDate = (value: string) => dateFormat.format(new Date(value))
 const deviceTotal = computed(() => data.value ? data.value.devices.ios + data.value.devices.android : 0)
 
 /**
+ * Kuyruğa girip henüz ulaşmamış ve henüz başarısız da olmamış teslimatlar.
+ * `delivery7d.sent` tüm satırları saydığı için üçü toplanmıyor: aradaki fark
+ * hâlâ yolda olanlar. Negatife düşmesi beklenmez ama sunucu sayaçları ayrı
+ * sorgulardan geldiği için yine de sıfırda kesiliyor.
+ */
+const inFlight7d = computed(() => {
+  const d = data.value?.delivery7d
+  return d ? Math.max(0, d.sent - d.delivered - d.failed) : 0
+})
+
+/** Tetikleyici kartındaki üçüncü sütunun altındaki ham sayı dökümü. */
+function triggerBreakdown(trigger: PushTrigger): string {
+  const pending = Math.max(0, trigger.sent7d - trigger.delivered7d - trigger.failed7d)
+  const parts = [
+    `${number(trigger.delivered7d)} ulaştı`,
+    `${number(trigger.failed7d)} başarısız`,
+  ]
+  if (pending > 0) parts.push(`${number(pending)} hâlâ yolda`)
+  return `${number(trigger.sent7d)} teslimat kuyruğa girdi: ${parts.join(', ')}`
+}
+
+/**
  * Ana anahtar açık olsa bile ortam değişkeni kapalıyken hiçbir şey gitmez.
  * Kartlardaki rozet bunu yutmasın diye durum üç değerli.
  */
@@ -188,27 +210,34 @@ defineExpose({ load })
           <div class="metric-foot">
             <small>{{ number(data.users.total) }} KULLANICININ {{ percent(data.users.permitted, data.users.total) }}’İ</small>
           </div>
+          <small class="metric-note">İZİN VERİP CİHAZ KAYDI AÇMIŞ KULLANICI; SONRADAN KAPATANLAR SAYILMAZ</small>
         </article>
         <article class="metric-card blue">
-          <div class="metric-top"><span>AKTİF CİHAZ</span><i class="pi pi-mobile" /></div>
+          <div class="metric-top"><span>KAYITLI CİHAZ</span><i class="pi pi-mobile" /></div>
           <strong>{{ number(deviceTotal) }}</strong>
           <div class="metric-foot">
             <small>iOS {{ number(data.devices.ios) }} · ANDROID {{ number(data.devices.android) }}</small>
           </div>
+          <small class="metric-note">TOKEN'I HENÜZ ÖLÜ SAYILMAMIŞ KAYIT; BİLDİRİM ALDIĞI ANLAMINA GELMEZ</small>
         </article>
         <article class="metric-card amber">
           <div class="metric-top"><span>7 GÜNDE ULAŞAN</span><i class="pi pi-send" /></div>
           <strong>{{ percent(data.delivery7d.delivered, data.delivery7d.sent) }}</strong>
           <div class="metric-foot">
-            <small>{{ number(data.delivery7d.delivered) }} / {{ number(data.delivery7d.sent) }} GÖNDERİM</small>
+            <small>{{ number(data.delivery7d.delivered) }} / {{ number(data.delivery7d.sent) }} KUYRUĞA GİREN</small>
           </div>
+          <small class="metric-note">
+            {{ number(data.delivery7d.failed) }} BAŞARISIZ
+            <template v-if="inFlight7d > 0"> · {{ number(inFlight7d) }} HÂLÂ YOLDA</template>
+          </small>
         </article>
         <article class="metric-card coral">
-          <div class="metric-top"><span>DÜŞEN CİHAZ</span><i class="pi pi-times-circle" /></div>
+          <div class="metric-top"><span>EMEKLİYE AYRILAN</span><i class="pi pi-times-circle" /></div>
           <strong>{{ number(data.devices.disabled7d) }}</strong>
           <div class="metric-foot">
-            <small>SON 7 GÜNDE, UYGULAMAYI SİLEN YA DA İZNİ KAPATAN</small>
+            <small>SON 7 GÜNDE TOKEN'I ÖLDÜĞÜ İÇİN KAPATILAN CİHAZ</small>
           </div>
+          <small class="metric-note">UYGULAMAYI SİLEN VE İZNİ KAPATAN CİHAZLAR BU SAYIYA GİRMEZ</small>
         </article>
       </div>
 
@@ -299,13 +328,13 @@ defineExpose({ load })
               Dokununca <strong>{{ pushTargetLabel(trigger.target) }}</strong> açılır
             </p>
 
-            <dl class="trigger-stats">
+            <dl class="trigger-stats" :title="triggerBreakdown(trigger)">
               <div>
                 <dt>Açık tutan</dt>
                 <dd>{{ number(trigger.optedIn) }}</dd>
               </div>
               <div>
-                <dt>7 günde</dt>
+                <dt>7 gün kuyruk</dt>
                 <dd>{{ number(trigger.sent7d) }}</dd>
               </div>
               <div>
@@ -347,7 +376,9 @@ defineExpose({ load })
               <small>{{ item.body }}</small>
             </div>
             <Tag :value="pushTargetLabel(item.target)" severity="secondary" />
-            <span class="scheduled-count">{{ number(item.recipientCount) }} cihaz</span>
+            <!-- recipientCount kişi sayısı: kitledeki her KULLANICI için bir
+                 push_events satırı açılıyor, cihaz başına değil. -->
+            <span class="scheduled-count">{{ number(item.recipientCount) }} kişi</span>
             <Button
               icon="pi pi-times" text rounded severity="danger" aria-label="İptal et"
               @click="cancelScheduled(item)"
@@ -367,3 +398,17 @@ defineExpose({ load })
     />
   </div>
 </template>
+
+<style scoped>
+/* Kartın sayısı bir şey söylüyor, altındaki satır neyi SÖYLEMEDİĞİNİ
+   söylüyor. Küçük ve soluk: kartın hiyerarşisini bozmadan uyarıyı taşır. */
+.metric-note {
+  display: block;
+  margin-top: 6px;
+  color: #a9aba2;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: .02em;
+}
+</style>

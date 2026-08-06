@@ -13,7 +13,7 @@ import {
   PUSH_BODY_MAX, PUSH_TITLE_MAX, pushTargetGroups, pushTargetLabel,
   type PushScreenTarget,
 } from '../../services/push'
-import { deliveryStatusLabel, type Provenance, type UserDetail } from '../../services/users'
+import { deliveryStatusLabel, versionInfo, type Provenance, type UserDetail } from '../../services/users'
 import { dateTime, num } from './shared'
 
 const props = defineProps<{ detail: UserDetail; sources: Record<keyof UserDetail, Provenance> }>()
@@ -23,6 +23,17 @@ const confirm = useConfirm()
 
 const notifications = computed(() => props.detail.notifications)
 const email = computed(() => props.detail.profile.email)
+
+/**
+ * Cihaz satırındaki sürüm KAYITLI sürümdür ve bayat olabilir: `push_devices`
+ * satırı yalnız push parmak izi (token, izin, platform) değişince yeniden
+ * yazılıyor, sürüm yükseltmesi tek başına ona dokunmuyor. Aynı sebeple
+ * "son görülme" de aslında "cihaz kaydının son yazıldığı an".
+ *
+ * Gerçekten çalışan sürüm oturum telemetrisinde: son `session_start`
+ * olayının app_version'ı. İkisi çeliştiğinde ekran bunu söylüyor.
+ */
+const version = computed(() => versionInfo(props.detail))
 
 /** Duyuru kitlesi e-posta ya da kullanıcı adıyla çözülüyor; e-posta her
     profilde dolu olduğu için tek kullanıcı gönderiminde onu kullanıyoruz. */
@@ -115,12 +126,32 @@ onMounted(loadReach)
             <i :class="device.platform === 'ios' ? 'pi pi-apple' : 'pi pi-android'" />
             <div>
               <strong>{{ device.platform === 'ios' ? 'iPhone' : 'Android' }}</strong>
-              <small>sürüm {{ device.appVersion || '—' }} · son görülme {{ dateTime(device.lastSeenAt) }}</small>
+              <!-- İki alan da kayıt anını anlatır, kullanım anını değil:
+                   satır yalnız push parmak izi değişince yeniden yazılıyor. -->
+              <small>
+                kayıtlı sürüm {{ device.appVersion || 'bilinmiyor' }}
+                · kayıt {{ dateTime(device.lastSeenAt) }}
+              </small>
             </div>
-            <Tag :value="device.enabled ? 'izin var' : 'izin yok'" :severity="device.enabled ? 'success' : 'secondary'" />
+            <Tag
+              :value="device.enabled ? 'kayıt açık' : 'kapatıldı'"
+              :severity="device.enabled ? 'success' : 'secondary'"
+            />
           </li>
         </ul>
         <p v-else class="muted-status">Kayıtlı cihaz yok; bu kullanıcıya bildirim ulaşmaz.</p>
+
+        <p v-if="version.stale" class="version-warn">
+          <i class="pi pi-exclamation-triangle" />
+          <span>
+            Kayıtlı sürüm geride: uygulama en son <strong>{{ version.running }}</strong> ile açılmış,
+            cihaz kaydı hâlâ <strong>{{ version.registered }}</strong> diyor. Çalışan sürüm için
+            oturum telemetrisine bak.
+          </span>
+        </p>
+        <p v-else-if="version.running" class="muted-status version-ok">
+          Çalışan sürüm {{ version.running }}; cihaz kaydıyla uyuşuyor.
+        </p>
       </article>
 
       <article class="panel-card pad">
@@ -140,9 +171,11 @@ onMounted(loadReach)
         <div><p>GÖNDERİM</p><h2>Bu kullanıcıya bildirim</h2></div>
         <span class="live-badge"><i class="pi pi-circle-fill" /> canlı uç</span>
       </div>
+      <!-- "ulaşır" değil "kuyruğa girer": deviceCount kayıtlı cihaz sayısı,
+           teslimatın gerçekleşeceğinin güvencesi değil. -->
       <p class="reach-line">
         <template v-if="reach">
-          Şu an <strong>{{ num(reach.deviceCount) }}</strong> cihaza ulaşır.
+          Şu an <strong>{{ num(reach.deviceCount) }}</strong> kayıtlı cihaz için kuyruğa girer.
         </template>
         <template v-else-if="reachError">{{ reachError }}</template>
         <template v-else>Kitle hesaplanıyor…</template>
@@ -189,8 +222,11 @@ onMounted(loadReach)
     <section class="panel-card pad">
       <div class="panel-title sm">
         <div><p>GEÇMİŞ</p><h2>Son gönderimler</h2></div>
+        <!-- sent30d = status IN ('ticketed','delivered'), yani Expo'nun kabul
+             ettiği teslimatlar. "Gönderim" değil "yola çıkan"; failed30d ile
+             toplamı kuyruğa giren toplamını vermez. -->
         <span class="result-count">
-          30 günde {{ num(notifications.sent30d) }} gönderim · {{ num(notifications.failed30d) }} başarısız
+          30 günde {{ num(notifications.sent30d) }} yola çıktı · {{ num(notifications.failed30d) }} başarısız
         </span>
       </div>
       <ul v-if="notifications.recent.length" class="delivery-list">
@@ -210,3 +246,23 @@ onMounted(loadReach)
     </section>
   </div>
 </template>
+
+<style scoped>
+/* İki sürüm kaynağı çeliştiğinde uyarı; çelişmediğinde tek satır teyit.
+   Uyarı kartın içinde kalır, listeyle aynı köşe yarıçapını paylaşır. */
+.version-warn {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #ecd3a3;
+  border-radius: 12px;
+  color: #8a6512;
+  background: #fdf5e3;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.version-warn i { margin-top: 2px; font-size: 12px; }
+.version-ok { margin: 10px 0 0; font-size: 11px; }
+</style>

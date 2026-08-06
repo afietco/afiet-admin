@@ -97,13 +97,13 @@ function askToSend() {
   submitted.value = true
   if (!valid.value) return
   const who = form.audience === 'all'
-    ? (recipients.value === null ? 'tüm kayıtlı cihazlara' : `${recipients.value.toLocaleString('tr-TR')} cihaza`)
-    : `${form.identifier.trim()} kullanıcısına`
+    ? (recipients.value === null ? 'tüm kayıtlı cihazlar için' : `${recipients.value.toLocaleString('tr-TR')} kayıtlı cihaz için`)
+    : `${form.identifier.trim()} kullanıcısı için`
   const when = form.timing === 'now' ? 'hemen' : dateFormat.format(form.scheduledAt!)
   const quiet = hitsQuietHours.value ? ' Sessiz saatlere denk gelenler aralığın bitişinde iletilir.' : ''
   confirm.require({
     header: 'Bildirimi gönder',
-    message: `“${form.title.trim()}” bildirimi ${who} ${when} gönderilecek ve ${targetLabel.value} ekranına yönlendirecek.${quiet} Onaylıyor musun?`,
+    message: `“${form.title.trim()}” bildirimi ${who} ${when} kuyruğa girecek ve dokunanı ${targetLabel.value} ekranına yönlendirecek.${quiet} Onaylıyor musun?`,
     icon: 'pi pi-send',
     rejectLabel: 'Vazgeç',
     acceptLabel: form.timing === 'now' ? 'Gönder' : 'Zamanla',
@@ -218,11 +218,13 @@ onMounted(loadRecipients)
         </div>
 
         <div class="section-footer">
+          <!-- "gidecek" değil "kuyruğa girecek": kayıtlı cihaz sayısı,
+               bildirimin ulaşacağını değil sıraya alınacağını söyler. -->
           <span class="section-status">
-            <template v-if="form.audience === 'user'">Tek kullanıcıya gidecek.</template>
-            <template v-else-if="recipientsLoading">Alıcı sayısı hesaplanıyor…</template>
-            <template v-else-if="recipients !== null">{{ recipients.toLocaleString('tr-TR') }} cihaza gidecek.</template>
-            <template v-else>Alıcı sayısı bildirim altyapısı bağlanınca görünecek.</template>
+            <template v-if="form.audience === 'user'">Tek kullanıcı için kuyruğa girecek.</template>
+            <template v-else-if="recipientsLoading">Kayıtlı cihaz sayısı hesaplanıyor…</template>
+            <template v-else-if="recipients !== null">{{ recipients.toLocaleString('tr-TR') }} kayıtlı cihaz için kuyruğa girecek.</template>
+            <template v-else>Kayıtlı cihaz sayısı bildirim altyapısı bağlanınca görünecek.</template>
           </span>
           <div class="section-buttons">
             <Button label="Temizle" severity="secondary" text @click="resetForm" />

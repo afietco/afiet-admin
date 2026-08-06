@@ -89,18 +89,50 @@ export type PushBroadcast = {
   scheduledAt: string | null
   createdAt: string
   status: PushBroadcastStatus
+  /**
+   * KİŞİ sayısı. Duyuru kurulurken kitledeki her kullanıcı için bir
+   * `push_events` satırı açılıyor ve `recipient_count` o INSERT'ün satır
+   * sayısı oluyor (store/push_broadcast.go, CreatePushBroadcast).
+   */
   recipientCount: number
+  /**
+   * CİHAZ sayısı, ve "ulaşan" değil "yola çıkan": sorgu
+   * `status IN ('ticketed','delivered')` sayıyor, yani Expo'nun kabul ettiği
+   * teslimatları. `ticketed` makbuz beklerken de buraya girer, sonradan
+   * `failed` olabilir.
+   *
+   * Birim `recipientCount` ile AYNI DEĞİL: iki cihazlı tek kullanıcıda
+   * 2/1 gibi bir oran çıkar. Panelde bu ikisi asla bölünmez, ikisi de
+   * birimiyle yazılır.
+   */
   deliveredCount: number
   ignoreQuietHours: boolean
 }
 
-/** Gönder'e basmadan önce kaç cihaza gideceğini gösterir. */
+/**
+ * Gönder'e basmadan önceki kitle ölçüsü. İki AYRI birim:
+ * `recipientCount` kaç KİŞİ, `deviceCount` o kişilerin kaç KAYITLI CİHAZI.
+ * Cihaz kaydı olmak bildirimin ulaşacağı anlamına gelmez, yalnız kuyruğa
+ * gireceği anlamına gelir.
+ */
 export type PushAudiencePreview = { recipientCount: number; deviceCount: number }
 
+/**
+ * Duyurunun durumu sunucuda türetiliyor: iptal varsa iptal, bekleyen
+ * `push_events` varsa zamanlandı/gönderiliyor, hiç bekleyen kalmadıysa son
+ * durum.
+ *
+ * BACKEND İŞİ: o son durum teslimatların başarılı olup olmadığına bakmıyor,
+ * yalnız kuyruğun boşaldığına bakıyor. Tüm teslimatları `failed` olan bir
+ * duyuru da buraya düşüyor. Bu yüzden etiket "Gönderildi" değil
+ * "Kuyruk bitti": panelin söyleyebileceği doğru cümle bu. Ayrı bir
+ * `failed` durumu sunucuda türetilene kadar geçmiş satırındaki sayılar
+ * (yola çıkan / kişi) gerçeği anlatan tek yer.
+ */
 export const pushStatusLabels: Record<PushBroadcastStatus, { label: string; severity: string }> = {
   scheduled: { label: 'Zamanlandı', severity: 'info' },
   sending: { label: 'Gönderiliyor', severity: 'warn' },
-  sent: { label: 'Gönderildi', severity: 'success' },
+  sent: { label: 'Kuyruk bitti', severity: 'success' },
   cancelled: { label: 'İptal edildi', severity: 'secondary' },
 }
 
@@ -147,9 +179,13 @@ export type PushTrigger = {
    */
   bodyVariants: Partial<Record<PushTone, string>>
   preferenceKey: PushPreferenceKey
-  /** Bu kategoriyi açık tutan, bildirim izni vermiş kullanıcı sayısı. */
+  /** Bu kategoriyi açık tutan, kayıtlı cihazı olan kullanıcı sayısı. */
   optedIn: number
-  /** Son 7 gün: kuyruğa giren bildirim, ulaşan, başarısız. */
+  /**
+   * Son 7 gün. Sözlük için aşağıdaki PUSH_METRIC_GLOSSARY'ye bak: `sent7d`
+   * KUYRUĞA GİREN teslimat satırlarının tamamı, `delivered7d` yalnız makbuzu
+   * onaylananlar. `sent7d` adı sunucudan geliyor ve "gönderildi" demek DEĞİL.
+   */
   sent7d: number
   delivered7d: number
   failed7d: number
@@ -190,13 +226,62 @@ export type PushGlobalSettings = {
 }
 
 export type PushOverview = PushGlobalSettings & {
+  /** `permitted`: en az bir kayıtlı cihazı olan kullanıcı sayısı. */
   users: { total: number; permitted: number }
+  /**
+   * `ios`/`android`: `push_devices WHERE enabled` satır sayısı. Bu KAYITLI
+   * cihaz demek, "aktif" ya da "bildirim alabilen" demek DEĞİL: kayıt
+   * duruyor ve token'ı henüz ölü sayılmamış, o kadar. Panelde bu sayı
+   * yıllarca 4 gösterirken hiçbirine tek bildirim ulaşmamış olabilir,
+   * dev'de tam olarak bu oldu.
+   *
+   * `disabled7d`: son 7 günde `enabled = false` çevrilmiş kayıt sayısı. Bu
+   * bayrağı tek çeviren yer store/push.go'daki MarkPushReceipt: Expo/APNs
+   * kalıcı token hatası döndüğünde cihaz emekliye ayrılıyor. Yani bu sayı
+   * "uygulamayı silen" ya da "izni kapatan" cihazları ÖLÇEMEZ:
+   *   - uygulamayı silen / çıkış yapan cihazın satırı DELETE ediliyor,
+   *     geriye sayılacak bir şey kalmıyor;
+   *   - işletim sistemi ayarından izni kapatan mobil tarafta hiç
+   *     algılanmıyor, satır `enabled` kalmaya devam ediyor.
+   * Panelde bu yüzden "emekliye ayrılan cihaz" diye anılıyor.
+   */
   devices: { ios: number; android: number; disabled7d: number }
+  /**
+   * Son 7 günün teslimat sayaçları. `sent` KUYRUĞA GİREN satırların tamamı:
+   * `SELECT count(*) FROM push_deliveries WHERE created_at >= now() - 7d`,
+   * yani pending/processing/ticketed de içinde. "Gönderilen" değil.
+   * `delivered` yalnız makbuzu onaylananlar, `failed` kalıcı hatalar.
+   * Üçünün toplamı `sent`'ten küçük olabilir: aradaki fark hâlâ yolda
+   * olanlardır.
+   */
   delivery7d: { sent: number; delivered: number; failed: number }
   triggers: PushTrigger[]
   /** Henüz gönderilmemiş, zamanlanmış duyurular. */
   scheduled: PushBroadcast[]
 }
+
+/**
+ * PANELİN BİLDİRİM SÖZLÜĞÜ. Yeni bir bildirim etiketi yazarken buradaki dört
+ * kelimeden birini seç; "gönderim" kelimesini KULLANMA.
+ *
+ *   kuyruğa giren  push_deliveries satırı açıldı. Tüm durumlar dahil
+ *                  (pending, processing, ticketed, delivered, failed).
+ *                  Hiçbir şeyin gittiğini söylemez.
+ *   yola çıkan     status IN ('ticketed','delivered'). Expo teslimatı kabul
+ *                  etti; ticketed olan sonradan failed'e düşebilir.
+ *   ulaşan         status = 'delivered'. Makbuz onayladı, cihaza gerçekten
+ *                  ulaştı. Panelde yüzde hep bunun üzerinden hesaplanır.
+ *   başarısız      status = 'failed'. Kalıcı token hatasında cihaz da
+ *                  emekliye ayrılır (store/push.go, MarkPushReceipt).
+ *
+ * Bu düzeltmeden önce panelde üç ayrı "gönderim" dolaşıyordu: bildirimler
+ * sayfası TÜM teslimat satırlarını, kullanıcı detayı ticketed+delivered'ı,
+ * duyuru geçmişi yine ticketed+delivered'ı aynı kelimeyle yazıyordu.
+ *
+ * BACKEND İŞİ: alan adları (`sent`, `sent7d`, `sent30d`) hâlâ üç ayrı şeyi
+ * "sent" diye adlandırıyor ve ikisi bu sözlükte "gönderim" bile değil.
+ * Sözleşme yenilenene kadar doğru kelimeyi UI koyuyor.
+ */
 
 export type PushGlobalPatch = Partial<Pick<PushGlobalSettings, 'masterEnabled' | 'quietStart' | 'quietEnd'>>
 
