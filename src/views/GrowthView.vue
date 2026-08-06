@@ -8,6 +8,7 @@ import { buildSofraBoard, type GrowthData } from '../services/growth'
 import { adminApi } from '../services/admin'
 import { SERIES_COLORS, duration } from './analytics/shared'
 import { screenLabel, sheetLabel, tapLabel } from '../services/telemetry-labels'
+import UsageDrawer, { type DrawerRow } from './growth/UsageDrawer.vue'
 
 // Gerçek veri /v1/admin/growth'tan gelir. Uç erişilemezse (oturumsuz/404/ağ)
 // mock ÜRETİLMEZ; veri null kalır ve sayfa placeholder gösterir.
@@ -53,6 +54,55 @@ const distTotal = computed(() => (d.value?.habit.activeDayDistribution ?? []).re
 const mealTotal = computed(() => (d.value?.habit.mealTypes ?? []).reduce((s, r) => s + r.count, 0))
 
 const retentionColor = (rate: number) => (rate >= 40 ? 'good' : rate >= 20 ? 'mid' : 'low')
+
+/**
+ * Retention satırları. Eski ekran yalnız iki yüzde gösteriyordu ve okunmuyordu:
+ * 7. günün 1. günden yüksek çıkması kohortların FARKLI olmasından geliyor
+ * (1. gün 18 kişi, 7. gün 9 kişi), ama ekran bunu hiç söylemiyordu. Artık her
+ * satır önce kohortu tanıtıyor, sonra yüzdeyi kişi sayısıyla birlikte veriyor.
+ *
+ * Kişi sayısı yüzdeden türetiliyor (uç yalnız oran + kohort döndürüyor), bu
+ * yüzden yuvarlama payı olabilir; sayı iddiası "yaklaşık kaç kişi" düzeyinde
+ * kalsın diye kohort her zaman yanında yazıyor.
+ */
+const retentionRows = computed(() =>
+  (d.value?.retention ?? []).map((r) => ({
+    ...r,
+    heading: `${r.days}. GÜN`,
+    empty: r.cohort === 0,
+    openCount: Math.round((r.openRate / 100) * r.cohort),
+    actCount: Math.round((r.rate / 100) * r.cohort),
+  })),
+)
+
+// ── Sayfada kısa dur, gerisini panelde göster ──────────────────────────────
+const PREVIEW_ROWS = 6
+
+type UsageKind = 'screens' | 'sheets' | 'taps'
+const drawer = ref<UsageKind | null>(null)
+
+const usageMeta: Record<UsageKind, { title: string; tone: 'green' | 'blue' | 'amber'; label: (k: string) => string; note?: string }> = {
+  screens: { title: 'En çok görülen ekranlar', tone: 'green', label: screenLabel },
+  sheets: { title: 'En çok açılan alt sayfalar', tone: 'blue', label: sheetLabel },
+  taps: { title: 'En sık dokunuşlar', tone: 'amber', label: tapLabel },
+}
+
+const usageRows = (kind: UsageKind) => {
+  const src = kind === 'screens' ? d.value?.sofra.topScreens : kind === 'sheets' ? d.value?.sofra.topSheets : d.value?.sofra.topTaps
+  const rows = src ?? []
+  const top = rows[0]?.count ?? 1
+  const label = usageMeta[kind].label
+  return rows.map<DrawerRow>((r) => ({
+    key: r.key,
+    label: label(r.key),
+    value: fmt(r.count),
+    side: r.avgSec != null ? duration(r.avgSec) : undefined,
+    ratio: pct(r.count, top),
+  }))
+}
+
+const drawerRows = computed<DrawerRow[]>(() => (drawer.value ? usageRows(drawer.value) : []))
+const drawerMeta = computed(() => (drawer.value ? usageMeta[drawer.value] : usageMeta.screens))
 
 // Sofra paneli: kart tahtası tamamen `/v1/admin/growth` yanıtından türetilir
 // (bkz. services/growth.ts → buildSofraBoard). Uydurma metrik yok; uçtan
@@ -150,19 +200,36 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
         <p class="block-caption">RETENTION & ALIŞKANLIK</p>
         <div class="split-grid wide-left">
           <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>KOHORT</p><h2>Retention</h2></div></div>
-            <div class="ret-legend"><span><i class="k-open" /> uygulamayı açtı</span><span><i class="k-act" /> eylem yaptı</span></div>
-            <div class="ret-list">
-              <div v-for="r in d.retention" :key="r.key" class="ret-row dual">
-                <span class="ret-label">{{ r.label }}</span>
-                <div class="ret-pair">
-                  <div class="ret-track"><div class="ret-fill open" :style="{ width: `${r.openRate}%` }" /></div>
-                  <div class="ret-track"><div class="ret-fill" :class="retentionColor(r.rate)" :style="{ width: `${r.rate}%` }" /></div>
-                </div>
-                <span class="ret-vals"><span class="open">%{{ r.openRate }}</span><span class="act">%{{ r.rate }}</span></span>
-              </div>
+            <div class="panel-title sm"><div><p>KOHORT</p><h2>Kayıttan sonra geri dönen</h2></div></div>
+
+            <div class="coh-list">
+              <section v-for="r in retentionRows" :key="r.key" class="coh">
+                <header class="coh-head">
+                  <strong>{{ r.heading }}</strong>
+                  <span v-if="!r.empty">kayıt olan {{ fmt(r.cohort) }} kişi</span>
+                  <span v-else class="coh-empty">henüz {{ r.days }} günü dolduran kimse yok</span>
+                </header>
+
+                <template v-if="!r.empty">
+                  <div class="coh-bar">
+                    <span class="coh-what">uygulamayı açtı</span>
+                    <div class="coh-track"><div class="coh-fill open" :style="{ width: `${r.openRate}%` }" /></div>
+                    <span class="coh-num"><strong>{{ fmt(r.openCount) }}</strong> kişi <em>%{{ r.openRate }}</em></span>
+                  </div>
+                  <div class="coh-bar">
+                    <span class="coh-what">bir şey kaydetti</span>
+                    <div class="coh-track"><div class="coh-fill" :class="retentionColor(r.rate)" :style="{ width: `${r.rate}%` }" /></div>
+                    <span class="coh-num"><strong>{{ fmt(r.actCount) }}</strong> kişi <em>%{{ r.rate }}</em></span>
+                  </div>
+                </template>
+              </section>
             </div>
-            <p class="note-line subtle">Kohort: {{ d.retention.map((r) => `${r.label} ${fmt(r.cohort)}`).join(' · ') }} kişi. Açtı = session_start; eylem = öğün·ölçüm·su. Oturum telemetrisi 1 Ağu'da çıktı; eski kohortların "açtı" oranı yapısal olarak düşük.</p>
+
+            <p class="note-line subtle">
+              Her satır AYRI bir kohort: yüzdeler birbiriyle kıyaslanmaz, çünkü paydaları farklı.
+              "Bir şey kaydetti" = öğün, ölçüm ya da su. Oturum telemetrisi 1 Ağu'da çıktı, o yüzden
+              eski kohortlarda "açtı" oranı yapısal olarak düşük görünür.
+            </p>
           </article>
 
           <article class="panel-card pad">
@@ -218,19 +285,22 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
 
           <div v-for="g in board.groups" :key="g.key" class="evt-group">
             <p class="evt-group-head">{{ g.label }} <span>{{ g.cards.length }}</span></p>
-            <div class="event-grid">
-              <div v-for="c in g.cards" :key="c.key" class="event-cell">
-                <div class="event-top">
-                  <span class="event-dot on" />
-                  <span class="event-label">{{ c.label }}</span>
-                  <span v-if="c.origin === 'derived'" class="card-flag" title="Uçta ayrı bir sayaç yok; bu değer yanıtın içindeki listelerden türetildi.">türetilmiş</span>
-                </div>
-                <strong v-if="cardValue(c) !== null"><span v-if="c.atLeast" class="event-approx">≥</span>{{ cardValue(c) }}<span class="event-unit">{{ c.unit }}</span></strong>
-                <strong v-else class="event-empty">—</strong>
-                <small class="event-src mono">{{ c.key }}</small>
-                <small class="event-src">{{ c.note }}<template v-if="c.atLeast"> · ilk 8 ile sınırlı, alt sınır</template></small>
-              </div>
-            </div>
+            <ul class="evt-rows">
+              <li v-for="c in g.cards" :key="c.key">
+                <span class="evt-dot" />
+                <span class="evt-name">
+                  {{ c.label }}
+                  <em class="mono">{{ c.key }}</em>
+                </span>
+                <span v-if="c.origin === 'derived'" class="card-flag" :title="c.note">türetilmiş</span>
+                <span class="evt-val">
+                  <template v-if="cardValue(c) !== null">
+                    <span v-if="c.atLeast" class="event-approx">≥</span>{{ cardValue(c) }}<span class="event-unit">{{ c.unit }}</span>
+                  </template>
+                  <span v-else class="event-empty">—</span>
+                </span>
+              </li>
+            </ul>
           </div>
 
           <template v-if="board.ratios.length">
@@ -245,16 +315,15 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
           </template>
 
           <details class="gap-details">
-            <summary><i class="pi pi-chevron-right" /> Panelde sayısı olmayan event'ler <span>{{ board.countedButHidden + board.neverFired + board.dark.length }}</span></summary>
+            <summary><i class="pi pi-chevron-right" /> Panelde sayısı olmayan event'ler <span>{{ board.countedButHidden + board.dark.length }}</span></summary>
             <div class="gap-body">
-              <div v-if="board.dark.length" class="event-grid">
-                <div v-for="c in board.dark" :key="c.key" class="event-cell dim">
-                  <div class="event-top"><span class="event-dot" /><span class="event-label">{{ c.label }}</span></div>
-                  <strong class="event-empty">—</strong>
-                  <small class="event-src mono">{{ c.key }}</small>
-                  <small class="event-src">enstrümante değil</small>
-                </div>
-              </div>
+              <ul v-if="board.dark.length" class="evt-rows dim">
+                <li v-for="c in board.dark" :key="c.key">
+                  <span class="evt-dot" />
+                  <span class="evt-name">{{ c.label }} <em class="mono">{{ c.key }}</em></span>
+                  <span class="evt-val"><span class="event-empty">hiç atılmamış</span></span>
+                </li>
+              </ul>
               <ul class="gap-list">
                 <li v-if="board.countedButHidden > 0">
                   <strong>{{ board.countedButHidden }} event bağlı ama panelde adı bile geçmiyor.</strong>
@@ -273,43 +342,45 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
           </details>
         </article>
 
-        <div class="triple-grid" style="margin-top: 15px">
-          <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok görülen ekranlar</h2></div></div>
-            <ul v-if="d.sofra.topScreens.length" class="src-list tight telemetry">
-              <li v-for="s in d.sofra.topScreens" :key="s.key">
-                <div class="src-row"><span class="src-name" :title="s.key">{{ screenLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
-                <div class="mini-track"><div class="mini-fill green" :style="{ width: `${pct(s.count, d.sofra.topScreens[0]?.count ?? 1)}%` }" /></div>
-              </li>
-            </ul>
-            <p v-if="d.sofra.topScreens.length && board?.topScreenShare !== null" class="note-line subtle"><i class="pi pi-info-circle" /> Bu ilk 8 ekran, tüm ekran görüntülemelerinin %{{ board?.topScreenShare }}'ini kapsıyor; kalanı uçta ilk 8 sınırının dışında kaldı.</p>
-            <p v-if="!d.sofra.topScreens.length" class="note-line subtle"><i class="pi pi-info-circle" /> Henüz screen_view verisi yok; mobil 0.9 yayıldıkça dolar.</p>
-          </article>
+        <div class="triple-grid equal" style="margin-top: 15px">
+          <article v-for="kind in (['screens', 'sheets', 'taps'] as const)" :key="kind" class="panel-card pad usage-card">
+            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>{{ usageMeta[kind].title }}</h2></div></div>
 
-          <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En çok açılan alt sayfalar</h2></div></div>
-            <ul v-if="d.sofra.topSheets.length" class="src-list tight telemetry">
-              <li v-for="s in d.sofra.topSheets" :key="s.key">
-                <div class="src-row"><span class="src-name" :title="s.key">{{ sheetLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}<template v-if="s.avgSec != null"> · {{ duration(s.avgSec) }}</template></span></div>
-                <div class="mini-track"><div class="mini-fill blue" :style="{ width: `${pct(s.count, d.sofra.topSheets[0]?.count ?? 1)}%` }" /></div>
+            <ul v-if="usageRows(kind).length" class="src-list tight telemetry">
+              <li v-for="row in usageRows(kind).slice(0, PREVIEW_ROWS)" :key="row.key">
+                <div class="src-row">
+                  <span class="src-name" :title="row.key">{{ row.label }}</span>
+                  <span class="src-val">{{ row.value }}<template v-if="row.side"> · {{ row.side }}</template></span>
+                </div>
+                <div class="mini-track"><div class="mini-fill" :class="usageMeta[kind].tone" :style="{ width: `${row.ratio}%` }" /></div>
               </li>
             </ul>
-            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz sheet_view verisi yok.</p>
-          </article>
+            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz veri yok; mobil sürüm yayıldıkça dolar.</p>
 
-          <article class="panel-card pad">
-            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>En sık dokunuşlar</h2></div></div>
-            <ul v-if="d.sofra.topTaps.length" class="src-list tight telemetry">
-              <li v-for="s in d.sofra.topTaps" :key="s.key">
-                <div class="src-row"><span class="src-name" :title="s.key">{{ tapLabel(s.key) }}</span><span class="src-val">{{ fmt(s.count) }}</span></div>
-                <div class="mini-track"><div class="mini-fill amber" :style="{ width: `${pct(s.count, d.sofra.topTaps[0]?.count ?? 1)}%` }" /></div>
-              </li>
-            </ul>
-            <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Henüz ui_tap verisi yok.</p>
+            <button
+              v-if="usageRows(kind).length > PREVIEW_ROWS"
+              type="button"
+              class="more-link"
+              @click="drawer = kind"
+            >
+              Devamını gör
+              <span>{{ usageRows(kind).length - PREVIEW_ROWS }} satır daha</span>
+              <i class="pi pi-arrow-right" />
+            </button>
           </article>
         </div>
       </section>
     </template>
+
+    <UsageDrawer
+      :visible="drawer !== null"
+      :title="drawerMeta.title"
+      eyebrow="OTURUM · 7 GÜN"
+      :rows="drawerRows"
+      :tone="drawerMeta.tone"
+      note="Liste uçta ilk 20 satırla sınırlı; uzun kuyruk buraya da girmez."
+      @update:visible="(v: boolean) => { if (!v) drawer = null }"
+    />
   </div>
 </template>
 
@@ -318,6 +389,65 @@ export default { name: 'GrowthView' }
 </script>
 
 <style scoped>
+/* Yan yana duran kartlar eşit yükseklikte olsun: global kural
+   (.split-grid > .panel-card { align-self: start }) her kartı kendi içeriğine
+   göre kısaltıyor ve satır tırtıklı görünüyordu. */
+.split-grid > .panel-card,
+.triple-grid.equal > .panel-card { align-self: stretch; }
+.usage-card { display: flex; flex-direction: column; }
+.usage-card .src-list { flex: 1; align-content: start; }
+
+/* "Devamını gör": listeyi kısa tutup gerisini sağdaki panele bırakır. */
+.more-link {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-top: 12px; padding: 9px 11px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: #fbfaf5; color: var(--green-dark);
+  font-size: 12px; font-weight: 800; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.more-link:hover { border-color: var(--green); background: #f4faf6; }
+.more-link span { flex: 1; color: var(--muted); font-weight: 700; text-align: right; }
+.more-link i { font-size: 10px; }
+
+/* ── Kohort blokları (retention) ──────────────────────────────────────────
+   Eski tasarım iki yüzdeyi yan yana koyuyordu ve 7. günün 1. günden yüksek
+   çıkması okunmuyordu. Artık her kohort kendi başlığıyla geliyor, yüzde
+   hiçbir yerde kişi sayısından ayrı durmuyor. */
+.coh-list { display: grid; gap: 18px; margin-top: 4px; }
+.coh-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; flex-wrap: wrap; }
+.coh-head strong { color: var(--ink); font-size: 12px; font-weight: 950; letter-spacing: .08em; }
+.coh-head span { color: var(--muted); font-size: 11.5px; font-weight: 700; }
+.coh-empty { font-style: italic; }
+.coh-bar { display: grid; grid-template-columns: 108px minmax(0, 1fr) 118px; gap: 11px; align-items: center; }
+.coh-bar + .coh-bar { margin-top: 7px; }
+.coh-what { color: #6c7a71; font-size: 11.5px; font-weight: 700; }
+.coh-track { height: 9px; border-radius: 999px; background: #eef1ec; overflow: hidden; }
+.coh-fill { height: 100%; border-radius: 999px; background: #34d399; transition: width .3s; }
+.coh-fill.open { background: #7aa9f0; }
+.coh-fill.good { background: #34d399; }
+.coh-fill.mid { background: #e0a33c; }
+.coh-fill.low { background: #dc725c; }
+.coh-num { color: var(--muted); font-size: 11.5px; text-align: right; }
+.coh-num strong { color: var(--ink); font-size: 13px; }
+.coh-num em { margin-left: 5px; font-style: normal; font-weight: 800; }
+
+/* ── Sofra event satırları ────────────────────────────────────────────────
+   37 event kart olarak çizilince sayfa okunmaz uzunluğa çıkıyordu; aynı
+   bilgi sıkı satırlarda duruyor. */
+.evt-rows { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.evt-rows li {
+  display: grid; grid-template-columns: 7px minmax(0, 1fr) auto auto;
+  gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px;
+}
+.evt-rows li:nth-child(odd) { background: #fbfaf6; }
+.evt-dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; }
+.evt-rows.dim .evt-dot { background: #cfd4cc; }
+.evt-name { overflow: hidden; color: #33413b; font-size: 12.5px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.evt-name em { margin-left: 8px; color: #9aa89f; font-size: 10.5px; font-style: normal; font-weight: 600; }
+.evt-val { color: var(--ink); font-size: 14px; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.evt-rows.dim .evt-val { color: #9aa89f; font-size: 11px; font-weight: 700; letter-spacing: 0; }
+
 /* Sofra paneli kapsama şeridi ve kategori grupları. Global .event-* sınıfları
    main.css'te yaşar; burada yalnız bu bölüme ait yeni parçalar var. */
 .cover-strip { display: grid; gap: 9px; }
