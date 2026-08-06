@@ -61,30 +61,22 @@ export type GrowthData = {
 
 // ── Sofra paneli türetmesi ───────────────────────────────────────────────────
 //
-// DOĞRULAMA (5 Ağu 2026, dev uca gerçek istek):
-// `sofra.instrumented` 23/37 diyor ama `sofra.stats` YALNIZ 6 satır döndürüyor.
-// Sebep uçta: backend'de `sofraHeadline` elle yazılmış 6 elemanlı bir liste
-// (afiet-backend/internal/store/growth.go). Yani "23 event bağlı" ile "6 event
-// gösteriliyor" arasındaki fark bir görünüm eksiği değil, uç eksiği.
+// GEÇMİŞ: Uç bir zamanlar `sofra.instrumented` 23/37 derken `sofra.stats`
+// yalnız 6 satır döndürüyordu (elle yazılmış bir "öne çıkanlar" listesi).
+// Panel o boşluğu, yanıtın içinde zaten duran event izlerinden türeterek
+// kapatıyordu. Uç artık sözlüğün tamamını döndürüyor, dolayısıyla sayım
+// kartları türetilmiyor: `hasCounter()` kapısı, uçta sayaç varsa türetilmişi
+// hiç üretmiyor. Kapı bilerek duruyor, çünkü türetilmiş sayı ilk N'lik
+// listeden toplandığı için ALT SINIR, uçtaki sayaç ise tam.
 //
-// Panelde uydurma yapmadan gösterilebilecek TEK genişleme, yanıtın kendi
-// içinde zaten duran ama kart olarak çizilmeyen event izleridir:
+// Türetmeye devam eden İKİ kart var, ikisi de sayım değil SÜRE, yani uçta
+// karşılıkları yok:
 //
-//   sheet_view    → topSheets satır sayıları (ilk 8 ile sınırlı → ALT SINIR)
-//   sheet_closed  → topSheets içindeki avgSec'in varlığı (süre ölçülüyor)
-//   ui_tap        → topTaps satır sayıları (ilk 8 ile sınırlı → ALT SINIR)
-//   session_end   → habit.sessions.avgSessionSec (ortalama oturum süresi)
+//   sheet_dwell    → topSheets içindeki avgSec (alt sayfada kalış)
+//   session_length → habit.sessions.avgSessionSec (ortalama oturum süresi)
 //
 // Bunlar "türetilmiş" (origin: 'derived') olarak işaretlenir ve kartta kaynağı
-// yazar. Geri kalan bağlı event'lerin ADLARI da SAYILARI da yanıtta yok; panel
-// onları isimlendiremez, yalnız kaç tane olduğunu söyler.
-//
-// BACKEND İŞİ (bu panel için gereken uç değişikliği):
-//   `GET /v1/admin/growth` → `sofra.stats` sabit 6'lık `sofraHeadline` yerine
-//   `eventDictionary`in TAMAMINI dönsün (her ad için 7 günlük sayı + toplam,
-//   atılmamışlar value:null / live:false). O gün burada tek satır değişmez:
-//   kartlar zaten `stats` üzerinden çizilir, kategori haritası hazırdır ve
-//   bilinmeyen adlar 'diger' grubuna düşer.
+// yazar. Uydurma sayı yok: atılmamış event atılmamış diye görünür.
 
 /** Kart grubu. Sözlükte olup bu listede olmayan ad 'diger'e düşer. */
 export type SofraCategory = 'oturum' | 'dongu' | 'denge' | 'sosyal' | 'afi' | 'bildirim' | 'diger'
@@ -212,25 +204,36 @@ export function buildSofraBoard(d: GrowthData): SofraBoard {
   }
 
   // ── Yanıtın içinde duran, kart olarak çizilmemiş event izleri ──
+  //
+  // Sayım kartları YALNIZ uç o event için sayaç döndürmüyorsa türetilir. Uç
+  // sözlüğün tamamını döndürmeye başlayınca (afiet-backend, sofra sözlüğü)
+  // türetilmiş sayım kartı gereksizleşti ve aynı event iki kez çizilmişti;
+  // üstelik türetilmiş değer ilk N'lik listeden toplandığı için ALT SINIR,
+  // uçtaki sayaç ise tam. Süre kartları farklı: onlar bir sayım değil, uçta
+  // hiç karşılığı olmayan ayrı bir ölçü, o yüzden kalıyorlar.
+  const hasCounter = (key: string) => s.stats.some((st) => st.key === key && st.live)
+
   const sheetRows = s.topSheets
   if (sheetRows.length) {
-    cards.push({
-      key: 'sheet_view', label: 'Alt sayfa açıldı', category: 'oturum',
-      value: sumCount(sheetRows), unit: '/7g', format: 'count', live: true, origin: 'derived',
-      atLeast: sheetRows.length >= USAGE_LIMIT,
-      note: 'alt sayfa listesinden toplandı',
-    })
+    if (!hasCounter('sheet_view')) {
+      cards.push({
+        key: 'sheet_view', label: 'Alt sayfa açıldı', category: 'oturum',
+        value: sumCount(sheetRows), unit: '/7g', format: 'count', live: true, origin: 'derived',
+        atLeast: sheetRows.length >= USAGE_LIMIT,
+        note: 'alt sayfa listesinden toplandı',
+      })
+    }
     const sec = weightedSec(sheetRows)
     if (sec !== null) {
       cards.push({
-        key: 'sheet_closed', label: 'Alt sayfada kalış', category: 'oturum',
+        key: 'sheet_dwell', label: 'Alt sayfada kalış', category: 'oturum',
         value: sec, unit: '', format: 'duration', live: true, origin: 'derived',
         atLeast: false,
-        note: 'açılış sayısıyla ağırlıklı ortalama; sheet_closed sayısı uçtan dönmüyor',
+        note: 'açılış sayısıyla ağırlıklı ortalama süre',
       })
     }
   }
-  if (s.topTaps.length) {
+  if (s.topTaps.length && !hasCounter('ui_tap')) {
     cards.push({
       key: 'ui_tap', label: 'Dokunuş', category: 'oturum',
       value: sumCount(s.topTaps), unit: '/7g', format: 'count', live: true, origin: 'derived',
@@ -240,10 +243,10 @@ export function buildSofraBoard(d: GrowthData): SofraBoard {
   }
   if (d.habit.sessions.avgSessionSec > 0) {
     cards.push({
-      key: 'session_end', label: 'Oturum kapandı', category: 'oturum',
+      key: 'session_length', label: 'Ortalama oturum süresi', category: 'oturum',
       value: d.habit.sessions.avgSessionSec, unit: '', format: 'duration', live: true, origin: 'derived',
       atLeast: false,
-      note: 'ortalama oturum süresi; kapanış sayısı uçtan dönmüyor',
+      note: 'oturum telemetrisinden ortalama',
     })
   }
 
