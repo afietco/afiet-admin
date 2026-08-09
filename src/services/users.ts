@@ -105,14 +105,21 @@ export type SessionRow = {
   appVersion: string
   events: SessionEvent[]
 }
-export type ScreenStat = { screen: string; label: string; opens: number; avgSec: number }
+/** medianSec ORTANCA'dır; arka plana atılıp ertesi gün dönülen tek bir ekran
+ *  ortalamayı saatlere çıkarıyordu (bkz. UserSessions.summary). */
+export type ScreenStat = { screen: string; label: string; opens: number; medianSec: number }
 export type SessionDay = { date: string; sessions: number; durationSec: number }
 
 export type UserSessions = {
   summary: {
     total30d: number
     perWeek: number
-    avgDurationSec: number
+    /**
+     * ORTANCA oturum süresi (sn). Ortalama DEĞİL: 9 Ağu 2026 denetiminde bir
+     * kullanıcının uygulamayı açık unuttuğu 15,6 saatlik tek oturumu, kendi
+     * "ortalama oturum"unu 49 dakikaya çıkarmıştı.
+     */
+    medianDurationSec: number
     medianScreens: number
     lastSessionAt: string | null
     /** Bildirimden açılan oturumların payı (0-1). */
