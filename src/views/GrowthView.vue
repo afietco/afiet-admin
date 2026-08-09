@@ -82,8 +82,8 @@ type UsageKind = 'screens' | 'sheets' | 'taps'
 const drawer = ref<UsageKind | null>(null)
 
 const usageMeta: Record<UsageKind, { title: string; tone: 'green' | 'blue' | 'amber'; label: (k: string) => string; note?: string }> = {
-  screens: { title: 'En çok görülen ekranlar', tone: 'green', label: screenLabel },
-  sheets: { title: 'En çok açılan alt sayfalar', tone: 'blue', label: sheetLabel },
+  screens: { title: 'En çok görülen ekranlar', tone: 'green', label: screenLabel, note: 'sağdaki süre ortancadır' },
+  sheets: { title: 'En çok açılan alt sayfalar', tone: 'blue', label: sheetLabel, note: 'sağdaki süre ortancadır' },
   taps: { title: 'En sık dokunuşlar', tone: 'amber', label: tapLabel },
 }
 
@@ -96,7 +96,7 @@ const usageRows = (kind: UsageKind) => {
     key: r.key,
     label: label(r.key),
     value: fmt(r.count),
-    side: r.avgSec != null ? duration(r.avgSec) : undefined,
+    side: r.medianSec != null ? duration(r.medianSec) : undefined,
     ratio: pct(r.count, top),
   }))
 }
@@ -155,7 +155,7 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
             <div class="session-row pulse">
               <div class="session-cell"><strong>{{ fmt(sess?.dau ?? 0) }}</strong><small>OTURUM DAU</small></div>
               <div class="session-cell"><strong>{{ fmt(sess?.wau ?? 0) }}</strong><small>OTURUM WAU</small></div>
-              <div class="session-cell"><strong>{{ duration(sess?.avgSessionSec ?? 0) }}</strong><small>ORT. OTURUM</small></div>
+              <div class="session-cell"><strong>{{ duration(sess?.medianSessionSec ?? 0) }}</strong><small>ORTANCA OTURUM</small></div>
               <div class="session-cell"><strong>{{ (sess?.sessionsPerActive ?? 0).toLocaleString('tr-TR') }}</strong><small>OTURUM / KİŞİ (7G)</small></div>
               <div class="session-cell"><strong>%{{ sess?.fromNotificationPct ?? 0 }}</strong><small>BİLDİRİMDEN AÇILIŞ</small></div>
             </div>
@@ -344,7 +344,13 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
 
         <div class="triple-grid equal" style="margin-top: 15px">
           <article v-for="kind in (['screens', 'sheets', 'taps'] as const)" :key="kind" class="panel-card pad usage-card">
-            <div class="panel-title sm"><div><p>OTURUM · 7 GÜN</p><h2>{{ usageMeta[kind].title }}</h2></div></div>
+            <div class="panel-title sm">
+              <div>
+                <p>OTURUM · 7 GÜN</p>
+                <h2>{{ usageMeta[kind].title }}</h2>
+                <p v-if="usageMeta[kind].note" class="usage-note">{{ usageMeta[kind].note }}</p>
+              </div>
+            </div>
 
             <ul v-if="usageRows(kind).length" class="src-list tight telemetry">
               <li v-for="row in usageRows(kind).slice(0, PREVIEW_ROWS)" :key="row.key">
@@ -396,6 +402,11 @@ export default { name: 'GrowthView' }
 .triple-grid.equal > .panel-card { align-self: stretch; }
 .usage-card { display: flex; flex-direction: column; }
 .usage-card .src-list { flex: 1; align-content: start; }
+
+/* Satırın sağındaki süre bir ortancadır ve bunu okuyanın bilmesi gerekiyor:
+   ortalama sanılan bir ortanca, aykırı değer arayan gözü yanlış yere bakmaya
+   gönderir. Başlığın altında durur, satırların içinde tekrar etmez. */
+.usage-note { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
 
 /* "Devamını gör": listeyi kısa tutup gerisini sağdaki panele bırakır. */
 .more-link {
