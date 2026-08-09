@@ -18,12 +18,18 @@ export type EventStat = { key: string; label: string; value: number | null; unit
 export type SessionStats = {
   dau: number
   wau: number
-  avgSessionSec: number
+  /**
+   * ORTANCA oturum süresi (sn). Ortalama DEĞİL: duration_sec üst sınırsız,
+   * arka plana atılıp ertesi gün dönülen tek bir oturum saatlerce görünüyor.
+   * 9 Ağu 2026 denetiminde 130 oturumun 2'si ortalamayı 584 sn'ye çıkarmıştı,
+   * ortanca oturum 59 sn'ydi. Etiketler "ortanca" demeli.
+   */
+  medianSessionSec: number
   sessionsPerActive: number
   fromNotificationPct: number
 }
-/** Ekran/sheet/dokunuş kullanım satırı (son 7 gün); avgSec süresizlerde yok. */
-export type UsageRow = { key: string; count: number; avgSec?: number | null }
+/** Ekran/sheet/dokunuş kullanım satırı (son 7 gün); medianSec süresizlerde yok. */
+export type UsageRow = { key: string; count: number; medianSec?: number | null }
 
 export type GrowthData = {
   generatedAt: string
@@ -72,8 +78,8 @@ export type GrowthData = {
 // Türetmeye devam eden İKİ kart var, ikisi de sayım değil SÜRE, yani uçta
 // karşılıkları yok:
 //
-//   sheet_dwell    → topSheets içindeki avgSec (alt sayfada kalış)
-//   session_length → habit.sessions.avgSessionSec (ortalama oturum süresi)
+//   sheet_dwell    → topSheets içindeki medianSec (alt sayfada kalış)
+//   session_length → habit.sessions.medianSessionSec (ortanca oturum süresi)
 //
 // Bunlar "türetilmiş" (origin: 'derived') olarak işaretlenir ve kartta kaynağı
 // yazar. Uydurma sayı yok: atılmamış event atılmamış diye görünür.
@@ -158,13 +164,20 @@ const USAGE_LIMIT = 8
 
 const sumCount = (rows: UsageRow[]) => rows.reduce((s, r) => s + r.count, 0)
 
-/** Süre taşıyan satırların, açılış sayısıyla ağırlıklı ortalaması (sn). */
+/**
+ * Süre taşıyan satırların, açılış sayısıyla ağırlıklı tipik süresi (sn).
+ *
+ * Girdilerin her biri artık ortanca olduğu için sonuç aykırı değere dayanıklı:
+ * tek bir uzun kalış yalnız kendi satırının ortancasını oynatabilir, tahtanın
+ * tamamını değil. Satırlar arası ağırlık açılış sayısıdır, yani çok açılan alt
+ * sayfa sonucu daha çok belirler.
+ */
 function weightedSec(rows: UsageRow[]): number | null {
   let num = 0
   let den = 0
   for (const r of rows) {
-    if (r.avgSec == null || r.count <= 0) continue
-    num += r.avgSec * r.count
+    if (r.medianSec == null || r.count <= 0) continue
+    num += r.medianSec * r.count
     den += r.count
   }
   return den > 0 ? Math.round(num / den) : null
@@ -229,7 +242,7 @@ export function buildSofraBoard(d: GrowthData): SofraBoard {
         key: 'sheet_dwell', label: 'Alt sayfada kalış', category: 'oturum',
         value: sec, unit: '', format: 'duration', live: true, origin: 'derived',
         atLeast: false,
-        note: 'açılış sayısıyla ağırlıklı ortalama süre',
+        note: 'açılış sayısıyla ağırlıklı ortanca süre',
       })
     }
   }
@@ -241,12 +254,12 @@ export function buildSofraBoard(d: GrowthData): SofraBoard {
       note: 'dokunuş listesinden toplandı',
     })
   }
-  if (d.habit.sessions.avgSessionSec > 0) {
+  if (d.habit.sessions.medianSessionSec > 0) {
     cards.push({
-      key: 'session_length', label: 'Ortalama oturum süresi', category: 'oturum',
-      value: d.habit.sessions.avgSessionSec, unit: '', format: 'duration', live: true, origin: 'derived',
+      key: 'session_length', label: 'Ortanca oturum süresi', category: 'oturum',
+      value: d.habit.sessions.medianSessionSec, unit: '', format: 'duration', live: true, origin: 'derived',
       atLeast: false,
-      note: 'oturum telemetrisinden ortalama',
+      note: 'oturum telemetrisinden ortanca',
     })
   }
 

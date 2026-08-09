@@ -15,7 +15,7 @@ const cards = computed(() => {
   const summary = sessions.value.summary
   return [
     { label: 'Oturum (30 gün)', value: num(summary.total30d), foot: `haftada ${summary.perWeek.toLocaleString('tr-TR')}`, tone: 'green', icon: 'pi pi-mobile' },
-    { label: 'Ortalama süre', value: duration(summary.avgDurationSec), foot: 'oturum başına', tone: 'blue', icon: 'pi pi-clock' },
+    { label: 'Ortanca süre', value: duration(summary.medianDurationSec), foot: 'oturum başına', tone: 'blue', icon: 'pi pi-clock' },
     { label: 'Ekran / oturum', value: num(summary.medianScreens), foot: 'ortanca', tone: 'amber', icon: 'pi pi-window-maximize' },
     { label: 'Son oturum', value: summary.lastSessionAt ? date(summary.lastSessionAt) : '—', foot: summary.lastSessionAt ? timeFmt.format(new Date(summary.lastSessionAt)) : 'kayıt yok', tone: 'coral', icon: 'pi pi-history' },
   ]
@@ -114,7 +114,7 @@ function eventLine(event: SessionEvent): { title: string; meta: string | null } 
         <li v-for="row in sessions.screens" :key="row.screen">
           <div class="src-row">
             <span class="src-name" :title="row.screen">{{ label.screen(row.screen) }}</span>
-            <span class="src-val">{{ num(row.opens) }} açılış · {{ duration(row.avgSec) }} ortalama</span>
+            <span class="src-val">{{ num(row.opens) }} açılış · {{ duration(row.medianSec) }} ortanca</span>
           </div>
           <div class="mini-track"><div class="mini-fill green" :style="{ width: `${String(pct(row.opens, screenMax))}%` }" /></div>
         </li>
