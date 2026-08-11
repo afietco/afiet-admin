@@ -2,7 +2,7 @@ import { authorizedFetch, signOut } from './auth'
 import type { GrowthData } from './growth'
 import type {
   PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput,
-  PushGlobalPatch, PushOverview, PushTrigger, PushTriggerPatch,
+  PushGlobalPatch, PushOverview, PushPerson, PushTrigger, PushTriggerPatch,
 } from './push'
 
 // Besin kataloğu tipleri ve uçları services/foods.ts'te yaşar: 16 alan,
@@ -120,6 +120,7 @@ export const adminApi = {
   // Aktif bildirimler. Bu üç uç backend'de HENÜZ YOK; açılana kadar
   // AktifTab.vue sahte veriye düşer (services/pushMock.ts).
   pushOverview: () => request<PushOverview>('/v1/admin/push/overview'),
+  pushPerson: (userId: string) => request<PushPerson>(`/v1/admin/push/kisi/${userId}`),
   updatePushTrigger: (kind: string, patch: PushTriggerPatch) =>
     request<PushTrigger>(`/v1/admin/push/triggers/${kind}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   updatePushGlobals: (patch: PushGlobalPatch) =>

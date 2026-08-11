@@ -7,6 +7,7 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import NotifyPolicy from './NotifyPolicy.vue'
 import SourceChip from './SourceChip.vue'
 import { adminApi } from '../../services/admin'
 import {
@@ -16,7 +17,11 @@ import {
 import { deliveryStatusLabel, versionInfo, type Provenance, type UserDetail } from '../../services/users'
 import { dateTime, num } from './shared'
 
-const props = defineProps<{ detail: UserDetail; sources: Record<keyof UserDetail, Provenance> }>()
+const props = defineProps<{
+  detail: UserDetail
+  sources: Record<keyof UserDetail, Provenance>
+  userId: string
+}>()
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -244,6 +249,8 @@ onMounted(loadReach)
       </ul>
       <p v-else class="muted-status">Bu kullanıcıya henüz bildirim gitmemiş.</p>
     </section>
+
+    <NotifyPolicy :user-id="userId" />
   </div>
 </template>
 
