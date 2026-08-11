@@ -17,6 +17,7 @@ import AudienceTab from './AudienceTab.vue'
 import InstagramTab from './InstagramTab.vue'
 import StoreTab from './StoreTab.vue'
 import SeoTab from './SeoTab.vue'
+import AiBotsTab from './AiBotsTab.vue'
 import { RANGES, type Range } from '../../services/analytics'
 import { useAnalyticsStore } from './shared'
 
@@ -47,6 +48,7 @@ onMounted(load)
         <Tab value="kitle">Kitle</Tab>
         <Tab value="instagram">Instagram</Tab>
         <Tab value="magaza">Mağaza</Tab>
+        <Tab value="botlar">AI botları</Tab>
         <Tab value="seo">SEO &amp; GEO</Tab>
       </TabList>
       <TabPanels>
@@ -57,6 +59,7 @@ onMounted(load)
         <TabPanel value="kitle"><AudienceTab v-if="data" :data="data" /><AdminPlaceholder v-else icon="pi pi-users" title="Analitik verisi getirilemedi" description="Veri şu an alınamadı. Bağlantını kontrol edip yeniden dene." retryable :loading="state.loading" @retry="load" /></TabPanel>
         <TabPanel value="instagram"><InstagramTab /></TabPanel>
         <TabPanel value="magaza"><StoreTab /></TabPanel>
+        <TabPanel value="botlar"><AiBotsTab /></TabPanel>
         <TabPanel value="seo"><SeoTab /></TabPanel>
       </TabPanels>
     </Tabs>

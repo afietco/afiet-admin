@@ -117,8 +117,42 @@ export type GscData = {
   pages: GscRow[]
 }
 
+/**
+ * AI tarayıcı erişim kaydı (afiet-web `ai_bot_hits`). Alan adları uçla BİREBİR
+ * aynadır (`server/api/admin/ai-bots.get.ts`), Türkçe olmaları oradan gelir.
+ *
+ * `kapsam` bilerek verinin yanında taşınır: sayfa bazlı sayılar ISR cache'i
+ * yüzünden ALT SINIRDIR ve bu uyarı ekranda görünmezse tablolar "demek ki az
+ * geliyor" diye yanlış okunur.
+ */
+export type AiBotRow = {
+  bot: string
+  sahip: string | null
+  amac: 'arama' | 'egitim' | 'kullanici' | null
+  istek: number
+  ilk: string
+  son: string
+  ok: number
+  bulunamadi: number
+  kisitlandi: number
+  sunucuHatasi: number
+}
+
+export type AiBotData = {
+  generatedAt: string
+  range: Range
+  toplam: number
+  botlar: AiBotRow[]
+  gunluk: { gun: string; bot: string; istek: number }[]
+  yollar: { path: string; istek: number; bot_sayisi: number }[]
+  nabiz: { path: string; istek: number; bot_sayisi: number }[]
+  sonHatalar: { ts: string; bot: string; path: string; status: number }[]
+  kapsam: { tamKapsananYollar: string[]; nabizYollari: string[]; not: string }
+}
+
 export const analyticsApi = {
   get: (range: Range) => webRequest<AnalyticsData>(`/api/admin/analytics?range=${range}`),
+  aiBots: (range: Range) => webRequest<AiBotData>(`/api/admin/ai-bots?range=${range}`),
   instagram: (range: Range) => webRequest<InstagramData>(`/api/admin/analytics/instagram?range=${range}`),
   store: (range: Range) => webRequest<StoreData>(`/api/admin/analytics/store?range=${range}`),
   storePut: (entry: StoreEntryInput, range: Range) =>
