@@ -141,12 +141,15 @@ ${briefBlock(item)}
 - Genel rehber uyarısını koru: kişiye özel tıbbi ya da diyet tavsiyesi değildir.
 
 ## E-E-A-T (yazar ve güven, sağlık = YMYL)
-- Gövdenin EN ÜSTÜNE (girişten önce) tek satır italik künye koy, şu biçimde:
-  "*Yazan: <ad, unvan> · İnceleyen: <ad, unvan> · Son güncelleme: <GG Ay YYYY>*"
-  Sağlık iddiası yoksa "İnceleyen" atlanabilir. Künyeyi brief'teki gerçek bilgiyle
-  doldur; eksik bilgiyi UYDURMA, bana sor (sahte yazar/uzman olmaz).
-- Not: yapısal yazar/inceleyen (frontmatter + MedicalWebPage şeması) web tarafı
-  desteğiyle gelecek; şimdilik bu görünür satır E-E-A-T metnini taşır.
+- Gövdeye KÜNYE YAZMA. Yazar künyesi (ad, unvan, tarih) artık sayfanın kendisi
+  tarafından basılıyor ve Person şemasıyla aynı kaynaktan geliyor
+  (afiet-web \`shared/utils/author.ts\`). Gövdeye "*Yazan: … · Son güncelleme: …*"
+  satırı eklersen sayfada ÇİFT künye çıkar. Tarihler de gövdeden değil
+  veritabanından gelir.
+- Yazar/uzman UYDURMA. Yazıda bir uzmanın görüşüne yer verilecekse bunu bana
+  sor; sahte yazar, sahte inceleyen ya da olmayan bir unvan yazılmaz.
+- Güveni gövdede kaynakla kur: sağlık iddiasını satır içi linkle kaynağa bağla
+  ve genel rehber uyarısını koru.
 
 ## Çıktı formatı
 \`content/posts/${slug}.md\` dosyasını şu frontmatter ile oluştur:
