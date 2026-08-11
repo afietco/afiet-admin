@@ -394,3 +394,91 @@ export function pushTriggerCondition(trigger: PushTrigger): string {
       return 'Gönder sekmesinden elle gönderildiğinde'
   }
 }
+
+
+/* ------------------------------------------------------------------ *
+ * Neden susuyor: tek bir kişi için kapının verdiği kararların okunuşu.
+ * ------------------------------------------------------------------ */
+
+export interface PushPersonKind {
+  kind: string
+  consecutiveUnopened: number
+  daysSinceLast: number
+  damped: boolean
+}
+
+export interface PushPersonDecision {
+  kind: string
+  status: 'pending' | 'promoted' | 'dropped' | 'merged'
+  reason?: string
+  createdAt: string
+  decidedAt: string | null
+}
+
+export interface PushPersonEvent {
+  kind: string
+  title: string
+  variant?: string
+  status: string
+  sentAt: string
+  openedAt: string | null
+}
+
+export interface PushPerson {
+  stage: string
+  tenure: { daysSinceFirstLog: number; daysSinceLastLog: number; loggingDaysLast7: number }
+  allowance: {
+    daily: number
+    social: number
+    weekly: number
+    windowDays: number
+    remindersAllowed: boolean
+    weeklyReminderCap: number
+  }
+  spend: { today: number; last7: number; last30: number; remindersLast7: number }
+  devices: number
+  measuring: boolean
+  kinds: PushPersonKind[]
+  decisions: PushPersonDecision[]
+  events: PushPersonEvent[]
+}
+
+/** Kademe adları. Boş dize "hiç kayıt yapmamış" demek, bir kademe değil. */
+export const stageLabels: Record<string, string> = {
+  '': 'Henüz başlamamış',
+  yeni: 'Yeni',
+  aliskanlik: 'Alışkanlık kuruyor',
+  duzenli: 'Düzenli',
+  suruklenen: 'Sürükleniyor',
+  kayip: 'Uzaklaşmış',
+}
+
+/**
+ * Düşme sebepleri kapıdan makine kodu olarak geliyor; Türkçesi burada.
+ * Teslimat durumlarında yaşanan karışıklığın tekrarlanmaması için sözlük
+ * eksiksiz: karşılığı olmayan bir kod ham haliyle gösterilir, sessizce
+ * "başarısız" ya da boş görünmez.
+ */
+export const dropReasonLabels: Record<string, string> = {
+  daily_cap: 'Günlük tavan doluydu',
+  social_cap: 'Sosyal kova doluydu',
+  digest_used: 'O günün özeti zaten gitmişti',
+  digest_off: 'Özet tetikleyicisi kapalı',
+  tone_balance: 'Son bildirimler zaten hatırlatma ağırlıklıydı',
+  stage_closed: 'Bu kademede bu tür kapalı',
+  stage_cap: 'Kademenin haftalık hakkı doluydu',
+  reminder_cap: 'Haftalık hatırlatma hakkı doluydu',
+  damped: 'Bu tür dinlenmede (üst üste açılmadı)',
+}
+
+export function dropReasonLabel(reason?: string): string {
+  if (!reason) return ''
+  return dropReasonLabels[reason] ?? reason
+}
+
+export const decisionStatusLabels: Record<PushPersonDecision['status'], string> = {
+  pending: 'Bekliyor',
+  promoted: 'Gönderildi',
+  dropped: 'Düştü',
+  merged: 'Özete katıldı',
+}
