@@ -182,7 +182,12 @@ onMounted(load)
             <ProgressTab v-if="activeTab === 'oyun'" :detail="detail" :sources="result!.sources" />
           </TabPanel>
           <TabPanel value="bildirim">
-            <NotifyTab v-if="activeTab === 'bildirim'" :detail="detail" :sources="result!.sources" />
+            <NotifyTab
+              v-if="activeTab === 'bildirim'"
+              :detail="detail"
+              :sources="result!.sources"
+              :user-id="String(route.params.userId)"
+            />
           </TabPanel>
           <TabPanel value="yonetim">
             <ManageTab
