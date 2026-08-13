@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { AnalyticsData, BreakdownRow } from '../../services/analytics'
-import { adminApi, type User } from '../../services/admin'
+import { adminApi, type FacetRow, type User, type UserFacets } from '../../services/admin'
+// Etiket sözlükleri kullanıcı servisinde yaşıyor; kırılım da aynı anahtarları
+// döndürdüğü için oradan okunur, kopyalanmaz.
+import { label } from '../../services/users'
 import { fmt, pct } from './shared'
 
 /**
@@ -26,34 +29,27 @@ const total = (rows: BreakdownRow[]) => rows.reduce((s, r) => s + r.visits, 0)
 
 // ── 2. Uygulama kullanıcıları ───────────────────────────────────────────────
 //
-// DOĞRULAMA (5 Ağu 2026, dev uca gerçek istek): `GET /v1/admin/users` satır
-// başına YALNIZ şu alanları döndürüyor —
-//   userId, email, displayName, emoji, createdAt, updatedAt,
-//   mealCount, customFoodCount, measurementCount, lastActivityAt
-// (backend: internal/store/admin.go → AdminUsers).
+// İKİ AYRI UÇ, İKİ AYRI SORU:
 //
-// Yani `user_profiles` tablosunda duran sex / birth_date / height_cm /
-// activity_level / sports alanları bu uçtan GELMİYOR. Yaş, cinsiyet, boy,
-// aktivite düzeyi ve spor kırılımı bu yüzden aşağıda YOK; uydurulmuyor.
-// Tek kullanıcı ucu (`/v1/admin/users/{id}`) bu alanları taşır ama kırılım için
-// 43 kişide 43, ileride 500 kişide 500 istek demek olurdu; kohort metriği için
-// doğru yol o değil.
+//   `GET /v1/admin/users` satır başına yalnız kimlik ve sayaç döndürür
+//   (userId, email, displayName, emoji, createdAt, updatedAt, mealCount,
+//   customFoodCount, measurementCount, lastActivityAt). Aşağıdaki "son
+//   hareket" ve "profil tamamlama" blokları bundan türetilir.
 //
-// BACKEND İŞİ (bu blok için gereken uç):
-//   `GET /v1/admin/users/facets` (ya da /v1/admin/growth içinde `audience`)
-//   → user_profiles üzerinden AGGREGATE kırılım, kişi-bazlı satır olmadan:
-//       sexes:          [{ key: 'kadin'|'erkek'|'belirtmedi', users }]
-//       ageBuckets:     [{ bucket: '18-24'|'25-34'|…, users }]   (birth_date'ten)
-//       heightBuckets:  [{ bucket: '<160'|'160-169'|…, users }]  (height_cm'den)
-//       activityLevels: [{ key, users }]
-//       topSports:      [{ key, users }]
-//   Her kova için minimum eşik (ör. <5 kişi olan kova "diğer"e katlanır) ki
-//   kırılım tek kişiyi tanımlanabilir hâle getirmesin.
+//   `GET /v1/admin/users/facets` (13 Ağu 2026) demografik kırılımı verir ve
+//   KİŞİ SATIRI TAŞIMAZ. Bu ayrım bilinçli: kırılımı kişi listesinden
+//   türetmek için gövde alanlarını listeye eklemek ya da kişi başına istek
+//   atmak gerekirdi (43 kişide 43, 500 kişide 500) ve ikisi de bir çubuk
+//   grafik uğruna profilleri tel üstüne koymak olurdu.
 //
-// KİLO bilerek bu listede yok. Marka kuralı: afiet kiloyu öne çıkarmaz, hedef
-// kilo ve süre vaadi vermez. Ürün kararı için gerekirse kilo YALNIZ kohort
-// düzeyinde ve yargısız dille (ör. "ölçüm giren kişi sayısı") sorulmalı; kişi
-// başına kilo dağılımı panele girmez.
+// Eşik: sunucu `minBucket`'tan küçük kovaları "diger"e katlar, katlanan
+// toplam da eşiğin altındaysa hiç göndermez. Bu yüzden çubukların toplamı
+// kullanıcı sayısını vermeyebilir ve sayfa farkı açıkça yazar.
+//
+// KİLO bu kırılımda VAR ve bir kurala bağlı (ürün kararı, 12 Ağu 2026):
+// yalnız kohort düzeyinde, yargısız dille, ölçüm giren kişi sayısı payda
+// olarak. Kişi başına kilo hiçbir ekrana girmez; marka kuralı gereği hedef
+// kilo ve süre vaadi de hiçbir yerde üretilmez.
 
 /** Uçtan çekilen kullanıcı listesinin üst sınırı; total bunu aşarsa panel söyler. */
 const USER_FETCH_CAP = 500
@@ -63,17 +59,74 @@ const userTotal = ref(0)
 const usersLoading = ref(true)
 const usersFailed = ref(false)
 
+/**
+ * Kırılım kendi ucundan gelir (services/admin.ts > UserFacets) ve kişi listesi
+ * ile AYRI yüklenir: biri düşerse diğeri çizilmeye devam etsin. İkisi farklı
+ * soru cevaplıyor, biri olmadan öbürü anlamsız değil.
+ */
+const facets = ref<UserFacets | null>(null)
+const facetsFailed = ref(false)
+
 onMounted(async () => {
-  try {
-    const page = await adminApi.users({ page: 1, pageSize: USER_FETCH_CAP })
-    users.value = page.items
-    userTotal.value = page.total
-  } catch {
-    usersFailed.value = true // uç yok / oturumsuz → mock ÜRETİLMEZ, dürüst boş durum
-  } finally {
-    usersLoading.value = false
-  }
+  const usersRequest = adminApi
+    .users({ page: 1, pageSize: USER_FETCH_CAP })
+    .then((page) => {
+      users.value = page.items
+      userTotal.value = page.total
+    })
+    .catch(() => {
+      usersFailed.value = true // uç yok / oturumsuz → mock ÜRETİLMEZ, dürüst boş durum
+    })
+    .finally(() => {
+      usersLoading.value = false
+    })
+
+  const facetsRequest = adminApi
+    .userFacets()
+    .then((data) => {
+      facets.value = data
+    })
+    .catch(() => {
+      facetsFailed.value = true
+    })
+
+  await Promise.all([usersRequest, facetsRequest])
 })
+
+/** Kırılım blokları; sırası ekranda okunma sırasıdır. */
+const facetBlocks = computed(() => {
+  const f = facets.value
+  if (!f) return []
+  return [
+    { key: 'sex', title: 'Cinsiyet', icon: 'pi pi-user', rows: f.sexes, labeller: label.sex },
+    { key: 'age', title: 'Yaş', icon: 'pi pi-calendar', rows: f.ageBuckets, labeller: null },
+    { key: 'height', title: 'Boy', icon: 'pi pi-arrows-v', rows: f.heightBuckets, labeller: null },
+    { key: 'weight', title: 'Kilo', icon: 'pi pi-chart-bar', rows: f.weightBuckets, labeller: null },
+    { key: 'activity', title: 'Aktivite düzeyi', icon: 'pi pi-bolt', rows: f.activityLevels, labeller: label.activity },
+    { key: 'sports', title: 'Spor dalları', icon: 'pi pi-heart', rows: f.topSports, labeller: null },
+  ].filter((block) => block.rows.length > 0)
+})
+
+/**
+ * Eşik altında kalıp hiç çizilmeyen kişi sayısı.
+ *
+ * Çubukların toplamı `total`a eşit olmak zorunda değil: sunucu küçük kovaları
+ * katlıyor ve katlanan toplam da eşiğin altındaysa onu da çizmiyor. Bu farkı
+ * söylemek bir sızıntı değil (zaten çıkarılabilir) ama söylememek okuyanı
+ * "demek ki kimse yok" diye yanıltır.
+ */
+const hiddenIn = (rows: FacetRow[]) => {
+  const f = facets.value
+  if (!f) return 0
+  const shown = rows.reduce((sum, row) => sum + row.users, 0)
+  return Math.max(0, f.total - shown)
+}
+
+const facetLabel = (block: { labeller: ((key: string) => string) | null }, key: string) => {
+  if (key === 'diger') return 'Diğer'
+  if (key === 'belirtmedi') return 'Belirtmemiş'
+  return block.labeller ? block.labeller(key) : key
+}
 
 /**
  * Backend zaman damgaları Postgres `::text` çıktısıdır:
@@ -247,31 +300,51 @@ const breakdowns = computed(() => [
           </ul>
         </article>
 
-        <article class="panel-card pad pending-card">
-          <div class="panel-title sm"><div><p>HENÜZ YOK</p><h2>Demografik kırılım</h2></div><i class="pi pi-lock panel-glyph" /></div>
-          <p class="pending-lead">Yaş, cinsiyet, boy, aktivite düzeyi ve spor alanları <span class="mono">user_profiles</span> tablosunda var ama kullanıcı listesi ucu bunları döndürmüyor. Bu yüzden burada tahmin edilmiyor, boş bırakılıyor.</p>
-          <ul class="pending-list">
-            <li><span>Yaş dağılımı</span><em>birth_date · uçta yok</em></li>
-            <li><span>Cinsiyet</span><em>sex · uçta yok</em></li>
-            <li><span>Boy dağılımı</span><em>height_cm · uçta yok</em></li>
-            <li><span>Aktivite düzeyi</span><em>activity_level · uçta yok</em></li>
-            <li><span>Spor dalları</span><em>sports · uçta yok</em></li>
+        <article v-if="facetsFailed" class="panel-card pad pending-card">
+          <div class="panel-title sm"><div><p>OKUNAMADI</p><h2>Demografik kırılım</h2></div><i class="pi pi-exclamation-circle panel-glyph" /></div>
+          <p class="pending-lead">Kırılım ucu (<span class="mono">/v1/admin/users/facets</span>) cevap vermedi. Sayfanın geri kalanı bundan etkilenmiyor; yenilemek genelde yetiyor.</p>
+        </article>
+
+        <article v-for="block in facetBlocks" :key="block.key" class="panel-card pad aud-card">
+          <div class="panel-title sm"><div><p>KIRILIM</p><h2>{{ block.title }}</h2></div><i :class="block.icon" class="panel-glyph" /></div>
+          <ul class="src-list tight">
+            <li v-for="row in block.rows" :key="row.key">
+              <div class="src-row">
+                <span class="src-name">{{ facetLabel(block, row.key) }}</span>
+                <span class="src-val">{{ fmt(row.users) }} · {{ pct(row.users, facets!.total) }}%</span>
+              </div>
+              <div class="mini-track"><div class="mini-fill violet" :style="{ width: `${pct(row.users, facets!.total)}%` }" /></div>
+            </li>
           </ul>
-          <p class="note-line subtle">
-            <i class="pi pi-server" />
-            Gereken: kişi-bazlı satır dönmeyen bir aggregate uç, ör. <span class="mono">/v1/admin/users/facets</span>; kovalarda küçük grupları katlayan bir eşikle.
+          <p v-if="hiddenIn(block.rows) > 0" class="note-line subtle">
+            <i class="pi pi-eye-slash" />
+            {{ fmt(hiddenIn(block.rows)) }} kişi eşik altındaki kovalarda; tek kişi tanımlanabilir olmasın diye çizilmiyor.
           </p>
-          <p class="note-line subtle">
-            <i class="pi pi-heart" />
-            Kilo dağılımı bilerek listede yok: afiet kiloyu öne çıkarmaz. Gerekirse yalnız kohort düzeyinde ve yargısız dille sorulur.
+          <p v-if="block.key === 'weight'" class="note-line subtle">
+            <i class="pi pi-info-circle" />
+            Payda ölçüm giren {{ fmt(facets!.measured) }} kişi. Kilo yalnız kohort düzeyinde durur; kişi satırına dönüşmez.
           </p>
         </article>
       </div>
+
+      <p v-if="facets" class="aud-foot">
+        <i class="pi pi-shield" />
+        Kırılımlar kişi-bazlı satır taşımaz. {{ facets.minBucket }} kişiden küçük kovalar
+        sunucuda birleştirilir; birleşen toplam da eşiğin altındaysa hiç gösterilmez, bu yüzden
+        çubukların toplamı kullanıcı sayısını vermeyebilir.
+      </p>
     </template>
   </div>
 </template>
 
 <style scoped>
+.aud-foot {
+  display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0;
+  padding: 10px 12px; border: 1px solid #e5e9e2; border-radius: 11px;
+  color: #7d8177; background: #f7f9f5; font-size: 10.5px; font-weight: 700; line-height: 1.55;
+}
+.aud-foot i { margin-top: 1px; font-size: 11px; }
+
 .aud-gap { margin-top: 18px; }
 /* Global .src-name capitalize'ı kova adlarını "Hiç Öğün Kaydı Yok"a çeviriyordu;
    burada etiketler cümle, tek kelimelik kaynak adı değil. */
@@ -281,8 +354,4 @@ const breakdowns = computed(() => [
 
 .pending-card { background: repeating-linear-gradient(135deg, #fffdf8, #fffdf8 10px, #faf8f1 10px, #faf8f1 20px); }
 .pending-lead { margin: 15px 0 0; color: #7f8f85; font-size: 11px; line-height: 1.6; }
-.pending-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 7px; }
-.pending-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 12px; border: 1px dashed var(--line); border-radius: 11px; background: rgba(255, 253, 248, .6); }
-.pending-list span { color: #7c8a81; font-size: 11px; font-weight: 800; }
-.pending-list em { color: #a6b2a8; font-size: 9px; font-weight: 700; font-style: normal; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>

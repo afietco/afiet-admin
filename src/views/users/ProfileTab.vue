@@ -21,6 +21,28 @@ const toast = useToast()
 
 const profile = computed(() => props.detail.profile)
 
+const kese = computed(() => props.detail.kese)
+const keseTierLabel = computed(() => (kese.value ? label.tier(kese.value.tier) : '—'))
+
+/**
+ * Kesenin dökümü: hak nereden geldi.
+ *
+ * Sıfır olan kalem çizilmez. "Hoş geldin: +0" satırı, ömürde bir kez verilen
+ * ve bu hafta verilmemiş bir şeyi eksiklik gibi gösterirdi; toplama katkısı
+ * olmayan kalem okuyanın sorusuna da cevap vermiyor.
+ */
+const kesePartsShown = computed(() => {
+  const a = kese.value?.allowance
+  if (!a) return []
+  return [
+    { label: 'Lig kademesi', value: a.tier },
+    { label: 'Unvan bandı', value: a.title },
+    { label: 'Karşılıklı selamlar', value: a.greeting },
+    { label: 'afiet+', value: a.premium },
+    { label: 'Hoş geldin', value: a.welcome },
+  ].filter((part) => part.value > 0)
+})
+
 /** Kimlik kartındaki satırlar; boş alan gizlenmez, "—" ile durur ki eksik
     olduğu görünsün. */
 const identity = computed(() => [
@@ -167,21 +189,64 @@ async function copyId() {
         yeniden yazıldığı için doğru cevap çalışan sürümdür.
       </p>
       <!--
-        İkram kesesi: veri uçtan gelmiyor, uydurulmuyor. Gerekli alanın tam
-        şekli ve backend'de nereye eklendiği services/users.ts içindeki kese
-        notunda yazılı.
+        İkram kesesi. Üç ayrı durum var ve üçü ayrı ekran gösterir:
+        kese null (okunamadı), enabled false (uykuda ama hak gerçek),
+        enabled true (canlı). Ayrıntı services/users.ts > UserKese.
       -->
-      <div class="vl-empty">
-        <i class="pi pi-inbox" />
+      <div class="kese-head">
+        <p>İKRAM KESESİ</p>
+        <span v-if="kese && !kese.enabled" class="kese-flag">
+          <i class="pi pi-moon" /> uykuda
+        </span>
+      </div>
+
+      <div v-if="!kese" class="vl-empty">
+        <i class="pi pi-exclamation-circle" />
         <div>
-          <strong>İkram kesesi verisi henüz uçtan gelmiyor.</strong>
+          <strong>Kese okunamadı.</strong>
           <small>
-            Kese haftalık Afi sohbeti hakkı; boyutunu lig kademesi belirler. Backend bugün keseyi yalnız
-            kişinin kendi ucunda hesaplıyor, admin kullanıcı detayında karşılığı yok. Gelmesi hâlinde
-            haftalık hak, harcanan ve kalan bu kartta durur.
+            Sayaç bu sefer cevap vermedi. Ekranın geri kalanı bundan etkilenmiyor;
+            sayfayı yenilemek genelde yetiyor.
           </small>
         </div>
       </div>
+
+      <template v-else>
+        <div class="vl-grid">
+          <div class="vl-cell">
+            <small>HAFTALIK HAK</small>
+            <strong>{{ num(kese.allowance.total) }}</strong>
+            <em>{{ keseTierLabel }} · seviye {{ kese.level }}</em>
+          </div>
+          <div class="vl-cell">
+            <small>HARCANAN</small>
+            <strong>{{ num(kese.spent) }}</strong>
+            <em>{{ date(kese.weekStart) }} haftası</em>
+          </div>
+          <div class="vl-cell" :class="{ stale: kese.empty }">
+            <small>KALAN</small>
+            <strong>{{ num(kese.remaining) }}</strong>
+            <em v-if="kese.empty">kese boş, {{ dateTime(kese.refreshesAt) }} tazelenir</em>
+            <em v-else>{{ dateTime(kese.refreshesAt) }} tazelenir</em>
+          </div>
+        </div>
+
+        <!-- Kesenin nereden geldiği, ekranda toplama olarak. Kademe ve unvan
+             kazanılmış şeyler; selam o haftaya ait ve dalgalanır. -->
+        <ul class="kese-parts">
+          <li v-for="part in kesePartsShown" :key="part.label">
+            <span>{{ part.label }}</span>
+            <em>+{{ num(part.value) }}</em>
+          </li>
+        </ul>
+
+        <p v-if="!kese.enabled" class="vl-warn">
+          <i class="pi pi-info-circle" />
+          Kese şu an ölçmüyor (<span class="mono">KESE_ENABLED</span> kapalı): sohbet
+          bu haktan düşmüyor, tek sınır günlük mesaj tavanı. Yukarıdaki sayılar
+          uydurma değil, bayrak açılsaydı bu kişinin sahip olacağı hak.
+        </p>
+      </template>
     </section>
 
     <section class="panel-card pad">
@@ -227,6 +292,28 @@ async function copyId() {
 }
 .vl-warn i { margin-top: 1px; font-size: 11px; }
 .vl-warn strong { font-weight: 900; font-variant-numeric: tabular-nums; }
+
+.kese-head { display: flex; gap: 8px; align-items: center; margin: 18px 0 8px; }
+.kese-head p { margin: 0; color: #8b8e84; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.kese-flag {
+  display: inline-flex; gap: 4px; align-items: center; padding: 2px 8px;
+  border: 1px solid #d9dbe6; border-radius: 999px; color: #6a6d80;
+  background: #f4f5f9; font-size: 9.5px; font-weight: 800;
+}
+.kese-flag i { font-size: 9px; }
+
+.kese-parts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.kese-parts li {
+  display: inline-flex; gap: 6px; align-items: baseline; padding: 5px 10px;
+  border: 1px solid #ecdcbb; border-radius: 999px; background: #fdf6e8;
+}
+.kese-parts span { color: #7a5a1f; font-size: 10.5px; font-weight: 700; }
+.kese-parts em {
+  color: #7a5a1f; font-size: 11px; font-style: normal; font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; }
 
 .vl-empty {
   display: flex; gap: 12px; align-items: flex-start; margin-top: 12px;

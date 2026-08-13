@@ -21,6 +21,39 @@ export type User = {
   measurementCount: number
   lastActivityAt: string | null
 }
+
+/**
+ * Kitle kırılımı (GET /v1/admin/users/facets).
+ *
+ * BU UÇTAN KİŞİ SATIRI ÇIKMAZ, yalnız sayılar. Kullanıcı listesi gövde
+ * alanlarını taşımadığı için kırılım oradan türetilemiyordu; kişi başına
+ * istek atmak da kohort sorusunun yanlış şekliydi (43 kişide 43 istek,
+ * 500 kişide 500) ve bir çubuk grafik çizmek için profilleri tel üstüne
+ * koymak demekti.
+ *
+ * `minBucket`'tan küçük kovalar sunucuda "diger"e katlanır ki kesişimden tek
+ * kişi tanımlanamasın. Katlanan toplam da eşiğin altındaysa "diger" satırı
+ * HİÇ GELMEZ; o yüzden çubukların toplamı `total`a eşit olmak zorunda değil
+ * ve panel farkı "eşik altında gizlendi" diye söyler, "kimse yok" diye değil.
+ *
+ * `belirtmedi` hiç katlanmaz: eksik veri değil, ayrı bir cevaptır ve
+ * kırılımın ne kadarını gerçekten bildiğimizi söyler.
+ */
+export type FacetRow = { key: string; users: number }
+export type UserFacets = {
+  total: number
+  sexes: FacetRow[]
+  ageBuckets: FacetRow[]
+  heightBuckets: FacetRow[]
+  /** Kohort düzeyinde kilo. Kişi başına satıra ASLA dönüşmez. */
+  weightBuckets: FacetRow[]
+  activityLevels: FacetRow[]
+  topSports: FacetRow[]
+  /** En az bir ölçüm girmiş kişi sayısı; kilo histogramının dürüst paydası. */
+  measured: number
+  /** Tek başına gösterilebilecek en küçük kova. */
+  minBucket: number
+}
 export type Quest = {
   id: string
   key: string
@@ -106,6 +139,7 @@ export const adminApi = {
   deleteQuest: (id: string) => request<void>(`/v1/admin/quests/${id}`, { method: 'DELETE' }),
   users: (params: { page: number; pageSize: number; query?: string }) =>
     request<Page<User>>(`/v1/admin/users${queryString(params)}`),
+  userFacets: () => request<UserFacets>('/v1/admin/users/facets'),
   pushBroadcasts: (params: { page: number; pageSize: number }) =>
     request<Page<PushBroadcast>>(`/v1/admin/push/broadcasts${queryString(params)}`),
   pushAudience: (audience: PushAudience) =>
