@@ -62,9 +62,9 @@ const tiers = computed(() => tierLadder(props.form.target, props.form.xpReward))
       {{ action.custom ? 'Panelden yazıldı' : 'Metrik ailesinin varsayılanı' }} · {{ questTargetHint(action.target) }}
     </p>
     <p class="preview-hint">
-      <i class="pi pi-flask" />
-      Kademeler mock: sunucu tek eşik dönüyor, üç porsiyon panelde türetiliyor. İkram kesesi
-      ödülü haftalık Afi sohbeti hakkıdır.
+      <i class="pi pi-sort-amount-up" />
+      Merdiven yukarıdaki tek eşikten türetiliyor ve kaydedilecek olan da bu.
+      İkram kesesi ödülü haftalık Afi sohbeti hakkıdır.
     </p>
   </div>
 </template>
