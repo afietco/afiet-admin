@@ -482,6 +482,7 @@ export const dropReasonLabels: Record<string, string> = {
   stage_cap: 'Kademenin haftalık hakkı doluydu',
   reminder_cap: 'Haftalık hatırlatma hakkı doluydu',
   damped: 'Bu tür dinlenmede (üst üste açılmadı)',
+  opened_app: 'Zilde bekliyordu, kişi uygulamayı açtı',
 }
 
 export function dropReasonLabel(reason?: string): string {
