@@ -20,8 +20,7 @@ import QuestTierPanel from './quests/QuestTierPanel.vue'
 import { adminApi, type Quest, type QuestInput } from '../services/admin'
 import { questTargetLabel } from '../services/questActions'
 import {
-  TIER_META, TIER_ORDER, countLabel, mockReach, percent, pouchLabel, tierLadder,
-  type QuestReach,
+  TIER_META, TIER_ORDER, countLabel, percent, pouchLabel, tierLadder,
 } from './quests/questTiers'
 
 const toast = useToast()
@@ -104,29 +103,31 @@ const targetOptions = computed(() => [
   ...actionTargets.value.map((value) => ({ value, label: questTargetLabel(value) })),
 ])
 
-/* ── Kademeler (MOCK) ──────────────────────────────────────────────────────
- * Sunucu bugün tek eşik dönüyor; üç kademe ve erişim hunisi panelde yerel
- * üretiliyor. Sözleşme önerisi ve gerekçe: views/quests/questTiers.ts.
- * Sayılar deterministik (anahtardan tohumlu), sayfa yenilenince oynamaz.
+/* ── Kademeler ─────────────────────────────────────────────────────────────
+ * Merdiven ve huni 13 Ağu 2026'dan beri uçtan geliyor (quest.tiers /
+ * quest.reach). Panelin eski yerel üreticisi silindi.
+ *
+ * `reach` null olabilir ve bu "kimse erişmedi" DEĞİL, "hesaplanamadı"
+ * demektir; sayı isteyen her yer bunu ayrı ele alır.
  */
 const expandedRows = ref<Record<string, boolean>>({})
-const reachByQuest = computed(() => {
-  const map = new Map<string, QuestReach>()
-  rows.value.forEach((quest) => map.set(quest.id, mockReach(quest)))
-  return map
-})
-function reachOf(quest: Quest): QuestReach {
-  return reachByQuest.value.get(quest.id) ?? mockReach(quest)
-}
 /** Üç kademenin eşikleri, satırda tek bakışta okunacak kısalıkta. */
 function tierTargets(quest: Quest) {
-  return reachOf(quest).tiers.map((tier) => tier.target)
+  return quest.tiers.map((tier) => tier.target)
 }
-/** Usta kademesini tamamlayanın tüm havuza oranı: görevin gerçek zirvesi. */
-function topShare(quest: Quest) {
-  const reach = reachOf(quest)
+/** İlk kademenin istatistiği; huni yoksa null ve satır "ölçüm yok" der. */
+function firstTierStats(quest: Quest) {
+  return quest.reach?.tiers[0]?.stats ?? null
+}
+/**
+ * Usta kademesini tamamlayanın tüm havuza oranı: görevin gerçek zirvesi.
+ * Huni yoksa null döner ve satır sayı yerine tire gösterir.
+ */
+function topShare(quest: Quest): number | null {
+  const reach = quest.reach
+  if (!reach || reach.tiers.length === 0 || reach.audience <= 0) return null
   const top = reach.tiers[reach.tiers.length - 1]
-  return reach.audience > 0 ? top.stats.completedUsers / reach.audience : 0
+  return top.stats.completedUsers / reach.audience
 }
 const expandAll = () => {
   expandedRows.value = Object.fromEntries(visibleRows.value.map((quest) => [quest.id, true]))
@@ -152,9 +153,22 @@ const emptyForm = (): QuestInput => ({
   xpReward: 10,
   active: true,
   sortOrder: 0,
+  tiers: [],
 })
 const form = reactive<QuestInput>(emptyForm())
-/** Formdaki tek eşikten türeyen merdiven; diyalogda salt okunur önizleme. */
+/**
+ * Diyalogdaki merdiven: tek eşikten türetilir ve KAYDEDİLEN de budur.
+ *
+ * Panelde kademe kademe düzenleyen bir alan yok; form tek eşiği alıyor ve
+ * merdiven ondan açılıyor. Bu yüzden kaydederken türetileni AÇIKÇA
+ * gönderiyoruz: sunucu boş `tiers`i "merdivene dokunma" diye okur ve hedefi
+ * değiştiren bir düzenleme uygulamada hiçbir şeyi oynatmazdı, çünkü uygulama
+ * artık kök hedefi değil kademeleri okuyor.
+ *
+ * Sonucu: elle ayarlanmış bir merdiven (API'den yazılmış) panelden yapılan
+ * her kayıtta türetilene döner. Kademe kademe düzenleme geldiğinde burası da
+ * değişir; o güne kadar davranış öngörülebilir olsun diye açık.
+ */
 const formLadder = computed(() => tierLadder(form.target, form.xpReward))
 const title = computed(() => (editing.value ? 'Görevi düzenle' : 'Yeni görev'))
 const keyInvalid = computed(() => !/^[a-z0-9_-]{3,40}$/.test(form.key))
@@ -205,6 +219,7 @@ function editQuest(quest: Quest) {
     xpReward: quest.xpReward,
     active: quest.active,
     sortOrder: quest.sortOrder,
+    tiers: [],
   })
   submitted.value = false
   dialogOpen.value = true
@@ -231,8 +246,10 @@ async function save() {
   if (!valid()) return
   saving.value = true
   try {
-    if (editing.value) await adminApi.updateQuest(editing.value.id, form)
-    else await adminApi.addQuest(form)
+    // Merdiven her kayıtta açıkça gider; gerekçe formLadder'ın başında.
+    const payload: QuestInput = { ...form, tiers: formLadder.value }
+    if (editing.value) await adminApi.updateQuest(editing.value.id, payload)
+    else await adminApi.addQuest(payload)
     toast.add({
       severity: 'success',
       summary: editing.value ? 'Görev güncellendi' : 'Görev eklendi',
@@ -312,14 +329,6 @@ onMounted(load)
     <Message v-if="inertCount > 0" severity="warn" :closable="false">
       {{ inertCount }} aktif görev, ilerleme kaynağı olmayan bir metrik kullanıyor
       (Gökkuşağı haftası / Elle). Bu görevler kullanıcıda hiç ilerlemez ve alınamaz.
-    </Message>
-
-    <Message severity="info" :closable="false" icon="pi pi-flask">
-      <strong>Kademeler ve erişim sayıları mock.</strong>
-      Sunucu bugün görev başına tek eşik dönüyor; satırı açınca görünen üç kademe
-      (Çırak · Kalfa · Usta) ve tüm yüzdeler panelde yerel üretiliyor, canlı
-      veri değil. Kaydetme akışı hâlâ tek eşiği yazar. Backend'den beklenen gövde
-      src/views/quests/questTiers.ts dosyasının başında yazılı.
     </Message>
 
     <section class="table-card">
@@ -410,41 +419,47 @@ onMounted(load)
           <template #body="{ data }">
             <div class="reward-cell">
               <span class="measure-pill xp">
-                {{ reachOf(data).tiers[0].xpReward }} → {{ reachOf(data).tiers[2].xpReward }} XP
+                {{ data.tiers[0].xpReward }} → {{ data.tiers[2].xpReward }} XP
               </span>
               <span class="measure-pill pouch">
                 <i class="pi pi-comments" />
-                {{ reachOf(data).tiers[0].pouchReward }} → {{ pouchLabel(reachOf(data).tiers[2].pouchReward) }}
+                {{ data.tiers[0].pouchReward }} → {{ pouchLabel(data.tiers[2].pouchReward) }}
               </span>
             </div>
           </template>
         </Column>
         <Column header="Erişim" style="min-width: 9rem">
           <template #body="{ data }">
-            <div class="rate-cell">
-              <strong>{{ percent(reachOf(data).tiers[0].stats.reachedShare) }}</strong>
+            <div v-if="firstTierStats(data)" class="rate-cell">
+              <strong>{{ percent(firstTierStats(data)!.reachedShare) }}</strong>
               <div class="rate-track">
                 <div
                   class="rate-fill"
-                  :style="{ width: `${Math.round(reachOf(data).tiers[0].stats.reachedShare * 100)}%` }"
+                  :style="{ width: `${Math.round(firstTierStats(data)!.reachedShare * 100)}%` }"
                 />
               </div>
-              <small>{{ countLabel(reachOf(data).tiers[0].stats.reachedUsers) }} kişi başladı</small>
+              <small>{{ countLabel(firstTierStats(data)!.reachedUsers) }} kişi başladı</small>
             </div>
+            <span v-else class="rate-none">ölçüm yok</span>
           </template>
         </Column>
         <Column header="Tamamlama" style="min-width: 9rem">
           <template #body="{ data }">
-            <div class="rate-cell">
-              <strong>{{ percent(reachOf(data).tiers[0].stats.completionRate) }}</strong>
+            <div v-if="firstTierStats(data)" class="rate-cell">
+              <strong>{{ percent(firstTierStats(data)!.completionRate) }}</strong>
               <div class="rate-track">
                 <div
                   class="rate-fill"
-                  :style="{ width: `${Math.round(reachOf(data).tiers[0].stats.completionRate * 100)}%` }"
+                  :style="{ width: `${Math.round(firstTierStats(data)!.completionRate * 100)}%` }"
                 />
               </div>
-              <small>çırak · ustae varan {{ percent(topShare(data)) }}</small>
+              <small>
+                çırak · ustaya varan
+                <template v-if="topShare(data) !== null">{{ percent(topShare(data)!) }}</template>
+                <template v-else>—</template>
+              </small>
             </div>
+            <span v-else class="rate-none">ölçüm yok</span>
           </template>
         </Column>
         <Column header="Durum" style="width: 7rem">
@@ -725,6 +740,7 @@ onMounted(load)
 .measure-pill.pouch { color: #7a5a1f; border-color: #ecdcbb; background: #fdf6e8; }
 .measure-pill.pouch i { font-size: 10px; }
 
+.rate-none { color: #a6a9a0; font-size: 10.5px; font-weight: 700; }
 .rate-cell { display: grid; gap: 4px; }
 .rate-cell strong { color: #333831; font-size: 13px; font-variant-numeric: tabular-nums; }
 .rate-cell small { color: #9a9c94; font-size: 8.5px; font-weight: 700; }

@@ -2,13 +2,17 @@
  * Kullanıcı besinlerinden katalog kürasyonu.
  *
  * Kullanıcılar mobilde kendi besinlerini ekliyor (custom_foods tablosu, "Menüm").
- * Bu dosya o havuzu adaya çeviren admin ucunun İSTEMCİ TARAFI. Uç backend'de
- * HENÜZ YOK: /v1/admin altında custom_foods'a bakan tek bir rota bile
- * bulunmuyor (server.go'daki /custom-foods rotaları kullanıcının kendi
- * menüsüdür, admin değil). Panel bu yüzden veri UYDURMAZ; liste ucu 404
- * dönerse ekran dürüst boş duruma düşer ve aşağıdaki sözleşmeyi gösterir.
+ * Bu dosya o havuzu adaya çeviren admin ucunun İSTEMCİ TARAFI.
  *
- * ── Beklenen sözleşme ────────────────────────────────────────────────────────
+ * UÇLAR 13 AĞU 2026'DA AÇILDI (afiet-backend, migration 000054 +
+ * internal/store/admin_curation.go). Aşağıdaki sözleşme artık bir istek değil,
+ * iki tarafın da uyduğu tanım; biri değişirse ikisi birlikte değişir.
+ *
+ * `MissingEndpointError` yolu DURUYOR ve bilerek: uç bir ortamda henüz deploy
+ * edilmemişse (dev'de var, prod'da yok gibi) ekranın göstereceği şey "veri yok"
+ * değil "bu ortamda uç yok"tur. İkisi ayrı ekran, ayrı iş listesi.
+ *
+ * ── Sözleşme ─────────────────────────────────────────────────────────────────
  *
  * GET /v1/admin/custom-foods
  *   Sorgu: query, status, minUsers, sort, order, page, pageSize
@@ -45,11 +49,14 @@
  *   yanlışlıkla kataloğa alınan besin panelin katalog sekmesinden pasife
  *   çekilir ya da silinir.
  *
- *   Kararlar yeni bir tabloda durmalı (custom_food_decisions): key TEXT PRIMARY
- *   KEY, status TEXT, food_id UUID NULL REFERENCES foods(id), note TEXT,
- *   decided_by TEXT, decided_at TIMESTAMPTZ. Karar ada bağlıdır, satıra değil:
- *   aynı adı yarın başka bir kullanıcı eklerse karar hâlâ geçerlidir. Her yazma
- *   admin_actions'a da satır düşürmeli (panelin geri kalanıyla aynı kural).
+ *   Kararlar custom_food_decisions tablosunda durur ve karar ADA bağlıdır,
+ *   satıra değil: aynı adı yarın başka bir kullanıcı eklerse karar hâlâ
+ *   geçerlidir. Her yazma admin_actions'a da satır düşürür, ama target_user_id
+ *   NULL kalır: buradaki özne bir kişi değil, bir addır.
+ *
+ *   'bekliyor' bir DEĞER değil, karar satırının YOKLUĞUDUR. Bu yüzden status
+ *   filtresi 'bekliyor' seçildiğinde sunucu "kararı olmayanlar" diye arar;
+ *   uygulamadaki her adın önce bir satırı olması gerekmiyor.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 

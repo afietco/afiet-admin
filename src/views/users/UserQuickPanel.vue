@@ -36,6 +36,9 @@ let inFlight = ''
 const status = computed<UserStatus | null>(() => (props.user ? statusOf(props.user) : null))
 const version = computed(() => (detail.value ? versionInfo(detail.value) : null))
 const league = computed(() => detail.value?.gamification.league ?? null)
+/** null iki şey olabilir: detay henüz gelmedi ya da kese okunamadı. Şablon
+    ikisini `loading` ile ayırıyor. */
+const kese = computed(() => detail.value?.kese ?? null)
 
 /** Detay gelmeden önce boşluk "—" değil "…": eksik veri ile bekleyen veri ayrı şeyler. */
 const pending = computed(() => (loading.value ? '…' : '—'))
@@ -220,24 +223,24 @@ function openFullPage() {
       </section>
 
       <section class="drawer-section">
-        <h4>İkram kesesi</h4>
-        <!--
-          Boş durum bilerek: kese yalnız kişinin kendi ucundan (GET /v1/kese)
-          hesaplanıyor, admin detayında karşılığı yok. Gerekli alanın şekli
-          services/users.ts içindeki kese notunda yazılı. Kademe ve seviye
-          elimizde ama o haftanın karşılıklı selamları yok, o yüzden tahmini
-          bir kese boyutu HESAPLANMIYOR.
-        -->
-        <div class="qp-empty">
-          <i class="pi pi-inbox" />
+        <h4>
+          İkram kesesi
+          <span v-if="kese && !kese.enabled" class="qp-flag"><i class="pi pi-moon" /> uykuda</span>
+        </h4>
+        <div v-if="loading" class="qp-wait"><i class="pi pi-spin pi-spinner" /> kese okunuyor…</div>
+        <!-- Hızlı bakış tek satırla cevap verir: kalan / haftalık hak.
+             Dökümü ve tazelenme saati tam sayfada. -->
+        <div v-else-if="kese" class="qp-kese" :class="{ empty: kese.empty }">
+          <strong>{{ num(kese.remaining) }}</strong>
           <div>
-            <strong>Kese verisi henüz uçtan gelmiyor.</strong>
-            <small>
-              Kese haftalık Afi sohbeti hakkı; boyutunu lig kademesi belirler. Backend bunu bugün yalnız
-              kişinin kendi ucunda hesaplıyor, admin detayına eklenmesi gerekiyor.
+            <small>haftalık {{ num(kese.allowance.total) }} hakkın kalanı</small>
+            <small class="qp-kese-sub">
+              {{ label.tier(kese.tier) }} · seviye {{ kese.level }}
+              <template v-if="kese.spent > 0"> · {{ num(kese.spent) }} harcanmış</template>
             </small>
           </div>
         </div>
+        <p v-else class="drawer-none">Kese okunamadı.</p>
       </section>
     </div>
   </Drawer>
@@ -286,6 +289,27 @@ function openFullPage() {
 }
 .qp-league strong { display: block; color: #2c332e; font-size: 14px; font-weight: 850; }
 .qp-league small { display: block; margin-top: 3px; color: #8d9087; font-size: 10px; font-weight: 700; }
+
+.qp-flag {
+  display: inline-flex; gap: 3px; align-items: center; margin-left: 6px;
+  padding: 1px 7px; border: 1px solid #d9dbe6; border-radius: 999px;
+  color: #6a6d80; background: #f4f5f9; font-size: 8.5px; font-weight: 800;
+  letter-spacing: 0; text-transform: none;
+}
+.qp-flag i { font-size: 8px; }
+
+.qp-kese {
+  display: flex; gap: 12px; align-items: center; padding: 10px 12px;
+  border: 1px solid #ecdcbb; border-radius: 12px; background: #fdf6e8;
+}
+.qp-kese strong {
+  color: #7a5a1f; font-size: 22px; font-weight: 900; letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.qp-kese small { display: block; color: #8a6f3c; font-size: 10.5px; font-weight: 700; }
+.qp-kese-sub { margin-top: 2px; color: #a2895a; font-size: 9.5px; }
+.qp-kese.empty { border-color: #e6c9c9; background: #fdf1f1; }
+.qp-kese.empty strong { color: #9a4b4b; }
 
 .qp-empty {
   display: flex; gap: 11px; align-items: flex-start;

@@ -164,41 +164,56 @@ export type UserGamification = {
   league: LeagueState
 }
 
-/*
- * İKRAM KESESİ: burada bilerek YOK, çünkü uçta yok.
+/**
+ * İKRAM KESESİ (13 Ağu 2026'da uç açıldı).
  *
  * Kese, haftalık Afi sohbeti hakkıdır ve boyutunu lig kademesi + unvan bandı +
  * o haftanın KARŞILIKLI selamları belirler (afiet-gamification/docs/13).
- * Backend bunu hesaplıyor ama yalnız kişinin kendisi için:
- * `GET /v1/kese` → store.KeseView (afiet-backend/internal/store/kese.go,
- * internal/server/kese_handlers.go). `GET /v1/admin/users/{id}` yanıtında
- * karşılığı yok, yani panel bir BAŞKASININ kesesini okuyamıyor; 5 Ağu 2026
- * itibarıyla yanıtın sekiz bloğu (profile, usage, habits, sessions,
- * gamification, social, notifications, audit) içinde kese geçmiyor.
+ * Şekil `store.KeseView` ile birebir aynıdır, yani buradaki alan adları
+ * kişinin kendi ucundan (`GET /v1/kese`) okuduğuyla aynıdır; biri değişirse
+ * ikisi birlikte değişir.
  *
- * Gereken backend işi: AdminUserDetail'e aşağıdaki blok.
+ * İKİ ŞEY UYGULAMADAN FARKLI ve ikisi de bilinçli:
  *
- *   kese: {
- *     enabled: boolean          // KESE_ENABLED kapalıysa false, kese uykuda
- *     allowance: { total, tier, level, greetings, welcome, ... }
- *     spent: number
- *     remaining: number
- *     empty: boolean
- *     weekStart: string         // o haftanın pazartesi'si, YYYY-MM-DD
- *     refreshesAt: string       // gelecek pazartesi 00:00 Europe/Istanbul
- *     tier: string
- *     level: number
- *     premium: boolean
- *   } | null
- *
- * Şekli store.KeseView ile birebir aynı; handler tarafında adminUserDetail
- * içine `s.store.KeseFor(ctx, userID, now)` çağrısı eklemek yetiyor (now
- * Europe/Istanbul olmalı, hafta sınırı oradan kesiliyor).
- *
- * Bu gelene kadar panel keseyi TAHMİN ETMİYOR: kademe ve seviye elimizde ama o
- * haftanın karşılıklı selam sayısı yok, uydurulan bir "kalan 4 hak" gerçek
- * ekranla çelişirdi. Ekran boş durumu açıkça söylüyor.
+ *   1. `enabled` false olsa bile `allowance` GERÇEK hesaplanır. Uygulamada
+ *      bunun tersi doğrudur (harcanamayacak bir sayı gösterilmez); destek
+ *      ekranının sorusu ise "açsaydık bu kişinin ne kadarı olurdu". Panel bu
+ *      yüzden sayıları "uykuda" rozetiyle birlikte çizer, gizlemez.
+ *   2. Okuma hata verirse blok `null` gelir ve İSTEK DÜŞMEZ. Kese bu ekranda
+ *      bir karttır; tek sayaç yüzünden profili ve denetim izini de kaybetmek
+ *      daha kötü bir cevap olurdu. null = "okunamadı", enabled:false =
+ *      "kese uykuda". İkisi ayrı ekran gösterir.
  */
+export type KeseAllowance = {
+  /** Haftalık toplam hak; aşağıdaki kalemlerin toplamıdır. */
+  total: number
+  /** Lig kademesinin tabanı. */
+  tier: number
+  /** Unvan bandının katkısı (seviyeden gelir). */
+  title: number
+  /** O haftanın KARŞILIKLI selamlarından gelen katkı. */
+  greeting: number
+  /** afiet+ aboneliğinin katkısı. */
+  premium: number
+  /** Ömürde bir kez verilen hoş geldin kesesi. */
+  welcome: number
+}
+
+export type UserKese = {
+  /** KESE_ENABLED. False ise kese uykuda; allowance yine gerçektir. */
+  enabled: boolean
+  allowance: KeseAllowance
+  spent: number
+  remaining: number
+  empty: boolean
+  /** O haftanın pazartesisi, YYYY-MM-DD. */
+  weekStart: string
+  /** Gelecek pazartesi 00:00 Europe/Istanbul, RFC3339. */
+  refreshesAt: string
+  tier: string
+  level: number
+  premium: boolean
+}
 
 // ── Sosyal ve bildirim ───────────────────────────────────────────────────────
 
@@ -281,6 +296,8 @@ export type UserDetail = {
   social: UserSocial
   notifications: UserNotifications
   audit: AuditEntry[]
+  /** null = okunamadı (uç hata verdi), enabled:false = kese uykuda. */
+  kese: UserKese | null
 }
 
 /**
@@ -612,6 +629,10 @@ export const usersApi = {
         profile: live, usage: live, habits: live, gamification: live,
         social: live, notifications: live, audit: live,
         sessions: detail.sessions.summary.total30d > 0 ? live : 'demo',
+        // Kese null gelirse bu bir "demo" değil, okunamamış bir sayaçtır ve
+        // ekran onu kendi cümlesiyle söylüyor. Kaynak yine canlı: uydurulmuş
+        // bir kese hiçbir koşulda üretilmiyor.
+        kese: live,
       },
     }
   },
