@@ -176,8 +176,21 @@ export type PushTrigger = {
    *
    * Metni model YAZMIYOR, aralarından SEÇİYOR: giden her cümleyi burada bir
    * insan yazmış oluyor.
+   *
+   * ŞEKİL İKİ TÜRLÜ VE BU BİLEREK BÖYLE. Bir ton ya tek cümledir ya da
+   * sırayla dönen cümleler dizisi:
+   *
+   *   week_closure   → "tek cümle"
+   *   meal_reminder  → ["üç", "ayrı", "cümle"]   (aynı akşam sözleri iki kez
+   *                                               duyulmasın diye sırayla döner)
+   *
+   * İkisini gönderim tarafında AYRI sorgular okuyor, o yüzden şekil bir
+   * tutarsızlık değil hangi sorgunun okuduğuna bağlı bir tercih. Panel şekli
+   * KORUR: aldığını geri gönderir. Diziye çevrilen bir kapanış cümlesi
+   * bildirimde ham JSON olarak görünürdü, cümleye indirgenen bir hatırlatma
+   * dizisi ise varyantı hiç kullanmayıp varsayılan gövdeye düşerdi.
    */
-  bodyVariants: Partial<Record<PushTone, string>>
+  bodyVariants: Partial<Record<PushTone, string | string[]>>
   preferenceKey: PushPreferenceKey
   /** Bu kategoriyi açık tutan, kayıtlı cihazı olan kullanıcı sayısı. */
   optedIn: number
