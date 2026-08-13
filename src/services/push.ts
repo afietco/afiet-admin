@@ -483,6 +483,8 @@ export const dropReasonLabels: Record<string, string> = {
   reminder_cap: 'Haftalık hatırlatma hakkı doluydu',
   damped: 'Bu tür dinlenmede (üst üste açılmadı)',
   opened_app: 'Zilde bekliyordu, kişi uygulamayı açtı',
+  no_device: 'Bildirime izin verilmemiş (zilde duruyor)',
+  muted: 'Kutlamalar kapalı (zilde duruyor)',
 }
 
 export function dropReasonLabel(reason?: string): string {
