@@ -46,6 +46,33 @@ function emptyVariants(): Record<PushTone, string> {
   return { sakin: '', 'doğrudan': '', oyunlu: '' }
 }
 
+/**
+ * Uçtan gelen varyant düzenlenebilir metne çevrilir: HER SATIR BİR CÜMLE.
+ *
+ * Dizi taşıyan bir ton (hatırlatma) satırlara açılır, tek cümle taşıyan bir
+ * ton (hafta kapanışı) tek satır olur. Böylece aynı kutu iki şekli de
+ * düzenliyor ve rotasyona cümle eklemek yeni bir alan gerektirmiyor.
+ */
+function variantToText(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value.join('\n')
+  return value ?? ''
+}
+
+/**
+ * Metni geri çevirirken ŞEKİL KORUNUR ve bu kritik.
+ *
+ * Tek satır tek cümle olarak, birden çok satır dizi olarak yazılır. Bir
+ * hatırlatma tonunu tek satıra indirmek onu cümleye çevirirdi ve gönderim
+ * sorgusu diziyi beklediği için varyant hiç kullanılmaz, varsayılan gövdeye
+ * düşerdi. Bu yüzden ton zaten dizi taşıyorsa tek satırda bile dizi kalır.
+ */
+function textToVariant(text: string, wasArray: boolean): string | string[] | null {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
+  if (lines.length === 0) return null
+  if (wasArray || lines.length > 1) return lines
+  return lines[0]
+}
+
 const submitted = ref(false)
 
 watch(() => props.trigger, (trigger) => {
@@ -56,7 +83,12 @@ watch(() => props.trigger, (trigger) => {
     target: trigger.target,
     time: trigger.time,
     weekday: trigger.weekday ?? 1,
-    variants: { ...emptyVariants(), ...trigger.bodyVariants },
+    variants: {
+      ...emptyVariants(),
+      ...Object.fromEntries(
+        PUSH_TONES.map((tone) => [tone, variantToText(trigger.bodyVariants[tone])]),
+      ),
+    },
   })
   previewTone.value = ''
   submitted.value = false
@@ -66,7 +98,12 @@ const errors = computed(() => ({
   title: !form.title.trim() || form.title.length > PUSH_TITLE_MAX,
   body: form.body.length > PUSH_BODY_MAX,
   time: Boolean(meta.value?.fields.time) && !isValidPushTime(form.time),
-  variants: PUSH_TONES.some((tone) => form.variants[tone].length > PUSH_BODY_MAX),
+  // Uzunluk SATIR BAŞINA bakılır: kutu artık birden çok cümle tutabiliyor ve
+  // toplam uzunluğa bakmak üç kısa cümleyi haksız yere reddederdi. Sunucu da
+  // aynı şekilde cümle cümle doğruluyor.
+  variants: PUSH_TONES.some((tone) =>
+    form.variants[tone].split('\n').some((line) => line.trim().length > PUSH_BODY_MAX),
+  ),
 }))
 
 /** Değişen alan yoksa kaydet düğmesi boşa çalışmasın. */
@@ -78,7 +115,7 @@ const dirty = computed(() => {
     || form.target !== trigger.target
     || (meta.value?.fields.time ? form.time !== trigger.time : false)
     || (meta.value?.fields.weekday ? form.weekday !== trigger.weekday : false)
-    || PUSH_TONES.some((tone) => form.variants[tone].trim() !== (trigger.bodyVariants[tone] ?? ''))
+    || PUSH_TONES.some((tone) => form.variants[tone].trim() !== variantToText(trigger.bodyVariants[tone]).trim())
 })
 
 /**
@@ -88,7 +125,11 @@ const dirty = computed(() => {
  */
 const previewBody = computed(() => {
   const tone = previewTone.value
-  if (tone && form.variants[tone].trim()) return form.variants[tone].trim()
+  if (tone && form.variants[tone].trim()) {
+    // Rotasyonda önizleme İLK cümleyi gösterir: sıradaki cümle kişiye ve son
+    // gönderime bağlı, panelde onu taklit etmek yanlış bir kesinlik olurdu.
+    return form.variants[tone].split('\n').map((line) => line.trim()).filter(Boolean)[0] ?? ''
+  }
   return form.body.trim()
 })
 
@@ -112,10 +153,11 @@ function submit() {
   if (meta.value?.fields.body) {
     // Boş tonlar hiç gönderilmiyor: sunucuda varyant sözlüğü tamamen
     // değiştiriliyor, dolayısıyla göndermemek silmenin yolu.
-    const variants: Partial<Record<PushTone, string>> = {}
+    const variants: Partial<Record<PushTone, string | string[]>> = {}
     for (const tone of PUSH_TONES) {
-      const text = form.variants[tone].trim()
-      if (text) variants[tone] = text
+      const wasArray = Array.isArray(props.trigger?.bodyVariants[tone])
+      const value = textToVariant(form.variants[tone], wasArray)
+      if (value !== null) variants[tone] = value
     }
     patch.bodyVariants = variants
   }
@@ -166,13 +208,18 @@ function submit() {
             giden her cümleyi burada bir insan yazıyor. Boş bıraktığın ton yukarıdaki
             genel metni alır.
           </p>
+          <p class="tones__note">
+            <strong>Her satır bir cümle.</strong> Birden çok satır yazarsan sırayla
+            dönerler, yani aynı kişi aynı sözleri arka arkaya duymaz. Tek satır
+            yazmak da geçerli; o zaman hep o cümle gider.
+          </p>
           <div v-for="tone in PUSH_TONES" :key="tone" class="tones__row">
             <div class="tones__head">
               <strong>{{ PUSH_TONE_META[tone].label }}</strong>
               <small>{{ PUSH_TONE_META[tone].hint }}</small>
             </div>
             <Textarea
-              v-model="form.variants[tone]" rows="2" fluid auto-resize :maxlength="PUSH_BODY_MAX"
+              v-model="form.variants[tone]" rows="2" fluid auto-resize
               :placeholder="form.body.trim() || 'Boş bırakılırsa genel metin gider'"
             />
           </div>
