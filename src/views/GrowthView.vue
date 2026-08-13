@@ -327,15 +327,19 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
               <ul class="gap-list">
                 <li v-if="board.countedButHidden > 0">
                   <strong>{{ board.countedButHidden }} event bağlı ama panelde adı bile geçmiyor.</strong>
-                  Uç (<span class="mono">GET /v1/admin/growth</span>) yalnız elle seçilmiş {{ d.sofra.stats.length }} başlığın sayısını döndürüyor; geri kalanların adı da sayısı da yanıtta yok, o yüzden burada uydurulmuyor.
-                  Çözüm backend tarafında: <span class="mono">sofra.stats</span> sabit başlık listesi yerine event sözlüğünün tamamını dönsün.
+                  Uç sözlüğün tamamını döndürdüğü için bu sayının normalde SIFIR olması gerekir.
+                  Sıfır değilse mobil tarafta gönderilen bir event, backend'deki sözlüğe
+                  (<span class="mono">internal/store/growth.go</span>) eklenmemiş demektir: iki liste birlikte değişmeliydi.
                 </li>
                 <li v-if="board.neverFired > 0">
                   <strong>{{ board.neverFired }} event sözlükte tanımlı ama hiç atılmamış.</strong>
                   Bunlar enstrümantasyon bekliyor; ölçüm bağlanmadan özellik açılmadığı için sözlükte duruyorlar.
                 </li>
                 <li>
-                  Kayıt / denge / sosyal / bildirim gruplarının boş görünmesi "bu event'ler yok" demek değil; uç bu grupların sayılarını henüz döndürmüyor demek.
+                  Bir grubun boş görünmesi "uç o grubu döndürmüyor" demek değil: uç
+                  (<span class="mono">GET /v1/admin/growth</span>) event sözlüğünün TAMAMINI döndürüyor,
+                  atılmamış olanları <span class="mono">value: null</span> ile işaretleyerek. Yani boş bir grup
+                  gerçekten "bu event'ler hiç atılmamış" demektir ve cevabı enstrümantasyondadır.
                 </li>
               </ul>
             </div>

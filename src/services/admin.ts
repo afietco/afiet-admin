@@ -117,8 +117,10 @@ export const adminApi = {
     request<PushBroadcast>('/v1/admin/push/broadcasts', { method: 'POST', body: JSON.stringify(input) }),
   cancelPushBroadcast: (id: string) =>
     request<void>(`/v1/admin/push/broadcasts/${id}`, { method: 'DELETE' }),
-  // Aktif bildirimler. Bu üç uç backend'de HENÜZ YOK; açılana kadar
-  // AktifTab.vue sahte veriye düşer (services/pushMock.ts).
+  // Aktif bildirimler: tetikleyici ayarları, izin sayıları, ana anahtar ve
+  // sessiz saatler. Dördü de backend'de canlı (server.go > /v1/admin/push/*).
+  // Bu not eskiden "uçlar HENÜZ YOK, panel pushMock.ts'e düşer" diyordu;
+  // uçlar açıldı, pushMock.ts silindi, not kaldı. Sahte veri yolu YOK.
   pushOverview: () => request<PushOverview>('/v1/admin/push/overview'),
   pushPerson: (userId: string) => request<PushPerson>(`/v1/admin/push/kisi/${userId}`),
   updatePushTrigger: (kind: string, patch: PushTriggerPatch) =>
