@@ -2,30 +2,34 @@
 import { computed } from 'vue'
 import Tag from 'primevue/tag'
 import { effectiveAction, questTargetLabel } from '../../services/questActions'
+import type { Quest } from '../../services/admin'
 import {
-  TIER_META, countLabel, daysLabel, mockReach, percent, pouchLabel,
+  TIER_META, countLabel, daysLabel, percent, pouchLabel,
 } from './questTiers'
 
 /**
  * Görev satırı açıldığında görünen kademe paneli.
  *
  * Üç kademe yan yana durur: aynı metrik, artan eşik, artan ödül. Altında o
- * kademeye kaç kişinin geldiği ve tamamlama oranı yazar. Sayıların TAMAMI
- * yerel mock (questTiers.ts); panel hiçbir uca sormaz.
+ * kademeye kaç kişinin geldiği ve tamamlama oranı yazar. Sayılar 13 Ağu
+ * 2026'dan beri GERÇEK (`quest.reach`); mock üreticisi silindi.
+ *
+ * `reach` null gelirse sayılar çizilmez ama merdivenin kendisi çizilir:
+ * eşikler ve ödüller görevin tanımı, huni ise onun ölçümü. Biri okunamadığında
+ * diğerini de gizlemek gereksiz.
  */
 const props = defineProps<{
-  quest: {
-    key: string
-    metric: string
-    target: number
-    xpReward: number
-    actionLabel?: string
-    actionTarget?: string
-  }
+  quest: Quest
   metricLabel: string
 }>()
 
-const reach = computed(() => mockReach(props.quest))
+const reach = computed(() => props.quest.reach)
+/** Huni yoksa merdiven yine çizilir, istatistiksiz. */
+const rows = computed(() =>
+  reach.value
+    ? reach.value.tiers
+    : props.quest.tiers.map((tier) => ({ ...tier, stats: null })),
+)
 const action = computed(() => effectiveAction(props.quest))
 /** Huni çubuğu: her kademenin genişliği havuza oranıdır, kademeler daralır. */
 const barWidth = (ratio: number) => `${Math.max(2, Math.round(ratio * 100))}%`
@@ -45,11 +49,11 @@ const barWidth = (ratio: number) => `${Math.max(2, Math.round(ratio * 100))}%`
           <template v-else><em>bu metrik için düğme yok.</em></template>
         </p>
       </div>
-      <span class="mock-flag"><i class="pi pi-flask" /> mock veri</span>
+      <span v-if="!reach" class="miss-flag"><i class="pi pi-eye-slash" /> huni okunamadı</span>
     </header>
 
     <div class="tier-grid">
-      <article v-for="(tier, index) in reach.tiers" :key="tier.key" class="tier-card">
+      <article v-for="(tier, index) in rows" :key="tier.key" class="tier-card">
         <header class="tier-card-head">
           <span class="tier-glyph">{{ TIER_META[tier.key].glyph }}</span>
           <div class="tier-name">
@@ -71,41 +75,54 @@ const barWidth = (ratio: number) => `${Math.max(2, Math.round(ratio * 100))}%`
           </span>
         </div>
 
-        <div class="tier-funnel">
-          <div class="tier-track">
-            <div class="tier-fill reached" :style="{ width: barWidth(tier.stats.reachedShare) }" />
-            <div
-              class="tier-fill done"
-              :style="{ width: barWidth(tier.stats.reachedShare * tier.stats.completionRate) }"
-            />
+        <template v-if="tier.stats">
+          <div class="tier-funnel">
+            <div class="tier-track">
+              <div class="tier-fill reached" :style="{ width: barWidth(tier.stats.reachedShare) }" />
+              <div
+                class="tier-fill done"
+                :style="{ width: barWidth(tier.stats.reachedShare * tier.stats.completionRate) }"
+              />
+            </div>
+            <small>açık: erişen · koyu: tamamlayan</small>
           </div>
-          <small>açık: erişen · koyu: tamamlayan</small>
-        </div>
 
-        <dl class="tier-stats">
-          <div>
-            <dt>Erişen</dt>
-            <dd>{{ countLabel(tier.stats.reachedUsers) }} <em>{{ percent(tier.stats.reachedShare) }}</em></dd>
-          </div>
-          <div>
-            <dt>Tamamlama</dt>
-            <dd>{{ percent(tier.stats.completionRate) }} <em>{{ countLabel(tier.stats.completedUsers) }} kişi</em></dd>
-          </div>
-          <div>
-            <dt>Ortanca süre</dt>
-            <dd>{{ daysLabel(tier.stats.medianDaysToComplete) }}</dd>
-          </div>
-        </dl>
+          <dl class="tier-stats">
+            <div>
+              <dt>Erişen</dt>
+              <dd>{{ countLabel(tier.stats.reachedUsers) }} <em>{{ percent(tier.stats.reachedShare) }}</em></dd>
+            </div>
+            <div>
+              <dt>Tamamlama</dt>
+              <dd>{{ percent(tier.stats.completionRate) }} <em>{{ countLabel(tier.stats.completedUsers) }} kişi</em></dd>
+            </div>
+            <div>
+              <dt>Ortanca süre</dt>
+              <dd>{{ daysLabel(tier.stats.medianDaysToComplete) }}</dd>
+            </div>
+          </dl>
+        </template>
       </article>
     </div>
 
-    <footer class="tier-panel-foot">
-      <Tag value="ÖNERİ" severity="warn" />
+    <footer v-if="reach" class="tier-panel-foot">
+      <Tag value="HUNİ" severity="secondary" />
       <p>
-        Kademeler henüz kaydedilmiyor: eşikler görevin mevcut hedefi ve tecrübesinden
-        türetiliyor (mevcut değer birinci kademe olur, üstü çarpanla açılır). Oranların
-        paydası {{ countLabel(reach.audience) }} kişilik sahte bir kullanıcı havuzu.
-        Veri sözleşmesi önerisi src/views/quests/questTiers.ts dosyasının başında duruyor.
+        Bir kademeye <strong>erişen</strong>, bir altındakini tamamlamış kişidir; ilk
+        kademeye görevi görebilen herkes erişmiş sayılır. Bu yüzden erişim yapı gereği
+        azalır ve her oran kendi paydasına okunur. Payda
+        {{ countLabel(reach.audience) }} kişi.
+        <br />
+        Merdivenin açıldığı gün çoktan geçilmiş kademeler <strong>ortanca süreye
+        girmez</strong> (hepsi aynı anı taşıdığı için bütün süreleri tabana çekerdi),
+        ama sayılarda durur: o kademelere gerçekten eriştiler.
+      </p>
+    </footer>
+    <footer v-else class="tier-panel-foot">
+      <Tag value="ÖLÇÜM YOK" severity="warn" />
+      <p>
+        Huni bu sefer hesaplanamadı. Yukarıdaki eşikler ve ödüller görevin tanımı ve
+        doğru; eksik olan yalnız kaç kişinin nereye geldiği.
       </p>
     </footer>
   </div>
@@ -118,13 +135,13 @@ const barWidth = (ratio: number) => `${Math.max(2, Math.round(ratio * 100))}%`
 .tier-panel-note strong { color: #333831; }
 .tier-panel-note em { font-style: normal; color: #9a9c94; }
 
-.mock-flag {
+.miss-flag {
   display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
   padding: 4px 10px; border-radius: 999px;
   color: #96612a; background: #fdf3e2;
   font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase;
 }
-.mock-flag i { font-size: 10px; }
+.miss-flag i { font-size: 10px; }
 
 .tier-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .tier-card {

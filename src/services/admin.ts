@@ -21,6 +21,39 @@ export type User = {
   measurementCount: number
   lastActivityAt: string | null
 }
+
+/**
+ * Kitle kırılımı (GET /v1/admin/users/facets).
+ *
+ * BU UÇTAN KİŞİ SATIRI ÇIKMAZ, yalnız sayılar. Kullanıcı listesi gövde
+ * alanlarını taşımadığı için kırılım oradan türetilemiyordu; kişi başına
+ * istek atmak da kohort sorusunun yanlış şekliydi (43 kişide 43 istek,
+ * 500 kişide 500) ve bir çubuk grafik çizmek için profilleri tel üstüne
+ * koymak demekti.
+ *
+ * `minBucket`'tan küçük kovalar sunucuda "diger"e katlanır ki kesişimden tek
+ * kişi tanımlanamasın. Katlanan toplam da eşiğin altındaysa "diger" satırı
+ * HİÇ GELMEZ; o yüzden çubukların toplamı `total`a eşit olmak zorunda değil
+ * ve panel farkı "eşik altında gizlendi" diye söyler, "kimse yok" diye değil.
+ *
+ * `belirtmedi` hiç katlanmaz: eksik veri değil, ayrı bir cevaptır ve
+ * kırılımın ne kadarını gerçekten bildiğimizi söyler.
+ */
+export type FacetRow = { key: string; users: number }
+export type UserFacets = {
+  total: number
+  sexes: FacetRow[]
+  ageBuckets: FacetRow[]
+  heightBuckets: FacetRow[]
+  /** Kohort düzeyinde kilo. Kişi başına satıra ASLA dönüşmez. */
+  weightBuckets: FacetRow[]
+  activityLevels: FacetRow[]
+  topSports: FacetRow[]
+  /** En az bir ölçüm girmiş kişi sayısı; kilo histogramının dürüst paydası. */
+  measured: number
+  /** Tek başına gösterilebilecek en küçük kova. */
+  minBucket: number
+}
 export type Quest = {
   id: string
   key: string
@@ -54,9 +87,76 @@ export type Quest = {
   sortOrder: number
   createdAt: string
   updatedAt: string
+  /**
+   * Merdiven: tam üç kademe, çırak → kalfa → usta sırasında.
+   *
+   * `target` ve `xpReward` kök alanları ÇIRAĞIN AYNASIDIR ve geriye dönük
+   * uyum için duruyor. Kademeleri bilmeyen bir okuyucu hâlâ tutarlı bir görev
+   * görüyor; kademeleri bilen buradan okur.
+   */
+  tiers: QuestTier[]
+  /**
+   * Huni. `null` "kimse erişmedi" DEĞİL, "hesaplanamadı" demektir; panel
+   * ikisini ayrı çizer.
+   */
+  reach: QuestReach | null
 }
-/** key is ignored on update — user progress is keyed to it. */
-export type QuestInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt'>
+
+export type QuestTierKey = 'cirak' | 'kalfa' | 'usta'
+
+/**
+ * Bir kademe. Üçü de AYNI metriği sayar, yalnız çıta yükselir; bu yüzden
+ * kademe başına metrik yok ve uygulamadaki eylem düğmesi üçünde de aynı.
+ */
+export type QuestTier = {
+  key: QuestTierKey
+  target: number
+  xpReward: number
+  /** O haftanın ikram kesesine eklenen sohbet hakkı. Para ya da puan DEĞİL. */
+  pouchReward: number
+}
+
+/**
+ * Kademe hunisi.
+ *
+ * HUNİ TANIMI: bir kademeye ERİŞEN, bir altındakini TAMAMLAMIŞ kişidir; ilk
+ * kademeye görevi görebilen herkes erişmiş sayılır. Erişim bu yüzden yapı
+ * gereği azalır ve her oran kendi paydasına okunur, yani "kalfa %40 dönüyor"
+ * cümlesi kalfa hakkındadır, görevin popülerliği hakkında değil.
+ */
+export type QuestTierStats = {
+  reachedUsers: number
+  reachedShare: number
+  completedUsers: number
+  completionRate: number
+  /**
+   * Kademeye erişmekten bitirmeye kadar geçen ortanca gün. `null` kimse
+   * bitirmedi demektir, sıfır gün değil.
+   *
+   * Merdivenin açıldığı gün çoktan geçilmiş kademeler bu ölçüden DIŞLANIR:
+   * hepsi aynı anı taşıdığı için "sıfır günde bitirdi" der ve bütün
+   * ortancaları tabana çekerdi. Sayılarda kalırlar.
+   */
+  medianDaysToComplete: number | null
+}
+
+export type QuestTierWithStats = QuestTier & { stats: QuestTierStats }
+
+export type QuestReach = {
+  /** Görevi görebilen herkes. */
+  audience: number
+  tiers: QuestTierWithStats[]
+  computedAt: string
+}
+
+/**
+ * key is ignored on update — user progress is keyed to it.
+ *
+ * `tiers` BOŞ bırakılırsa sunucu merdivene dokunmaz (güncellemede) ya da tek
+ * eşikten türetir (yaratmada). Yalnız başlığı değiştiren bir kayıt merdiveni
+ * sessizce silmesin diye böyle.
+ */
+export type QuestInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt' | 'reach'>
 /**
  * The list endpoint ships the allowed metric/scope values with the rows, so the
  * form never hardcodes the quest_metric enum. A metric missing from that list
@@ -106,6 +206,7 @@ export const adminApi = {
   deleteQuest: (id: string) => request<void>(`/v1/admin/quests/${id}`, { method: 'DELETE' }),
   users: (params: { page: number; pageSize: number; query?: string }) =>
     request<Page<User>>(`/v1/admin/users${queryString(params)}`),
+  userFacets: () => request<UserFacets>('/v1/admin/users/facets'),
   pushBroadcasts: (params: { page: number; pageSize: number }) =>
     request<Page<PushBroadcast>>(`/v1/admin/push/broadcasts${queryString(params)}`),
   pushAudience: (audience: PushAudience) =>
