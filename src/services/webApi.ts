@@ -1,5 +1,5 @@
 import { config } from '../config'
-import { authorizedFetchBase, signOut } from './auth'
+import { authorizedFetchBase } from './auth'
 
 /**
  * afiet-web (Nuxt) SEO/GEO yönetim API'si istemcisi. Kimlik: kullanıcının
@@ -86,7 +86,6 @@ async function webFetch(path: string, init: RequestInit = {}): Promise<Response>
 /** Web API'sine kimlikli istek — diğer web-kaynaklı servisler de (içerik) bunu kullanır. */
 export async function webRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await webFetch(path, init)
-  if (response.status === 401 && !usingDevToken()) signOut()
   if (!response.ok) {
     let code = ''
     try {

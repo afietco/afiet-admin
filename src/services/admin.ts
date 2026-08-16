@@ -1,4 +1,4 @@
-import { authorizedFetch, signOut } from './auth'
+import { authorizedFetch } from './auth'
 import type { GrowthData } from './growth'
 import type {
   PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput,
@@ -184,7 +184,6 @@ function queryString(params: Record<string, string | number | undefined>) {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authorizedFetch(path, init)
-  if (response.status === 401) signOut()
   if (!response.ok) {
     let message = 'İşlem tamamlanamadı.'
     try {

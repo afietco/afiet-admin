@@ -294,9 +294,9 @@ watch(() => route.fullPath, () => {
   query.value = ''
 })
 
+// Yönlendirmeyi auth katmanı yapar (oturum nerede biterse bitsin aynı yol).
 function logout() {
   signOut()
-  router.push('/giris')
 }
 </script>
 
