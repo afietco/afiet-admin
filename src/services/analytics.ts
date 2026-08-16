@@ -1,4 +1,4 @@
-import { webRequest } from './webApi'
+import { webRequest, webRequestText } from './webApi'
 
 /**
  * Web analitiği (afiet.co) veri sözleşmesi.
@@ -23,6 +23,8 @@ export type ChannelKey = 'direct' | 'search' | 'social' | 'referral' | 'campaign
 export type ChannelRow = { key: ChannelKey; label: string; visits: number }
 export type SourceRow = { source: string; visits: number }
 export type UtmRow = { value: string; visits: number }
+/** utm_content (kreatif) satırı: ziyaret + o kreatiften gelen ziyaretçilerin web dönüşümleri (son giriş). */
+export type ContentRow = { value: string; visits: number; magaza: number; bulten: number }
 export type BreakdownRow = { key: string; label: string; visits: number }
 
 export type AnalyticsData = {
@@ -48,7 +50,9 @@ export type AnalyticsData = {
   blog: BlogRow[]
   channels: ChannelRow[]
   referrers: SourceRow[]
-  utm: { source: UtmRow[]; medium: UtmRow[]; campaign: UtmRow[] }
+  utm: { source: UtmRow[]; medium: UtmRow[]; campaign: UtmRow[]; term: UtmRow[]; content: ContentRow[] }
+  /** Web dönüşümleri: mağaza tıklaması (mağazaya göre), bülten kaydı; reklam tıklama kimliğiyle eşlenen pay. */
+  webConversions: { magazaPlay: number; magazaAppstore: number; bulten: number; withClickId: number }
   devices: BreakdownRow[]
   browsers: BreakdownRow[]
   countries: BreakdownRow[]
@@ -165,5 +169,7 @@ export const analyticsApi = {
       body: JSON.stringify({ entries, range }),
     }),
   search: (range: Range) => webRequest<GscData>(`/api/admin/analytics/search?range=${range}`),
+  /** Google Ads offline conversion CSV'si (metin); panel dosya olarak indirtir. */
+  adsConversionsCsv: (range: Range) => webRequestText(`/api/admin/analytics/ads-conversions?range=${range}`),
 }
 
