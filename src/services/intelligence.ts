@@ -14,7 +14,7 @@
  * panelin eski değeri güvenle göstermesi, hiç göstermemesinden daha kötü.
  */
 
-import { authorizedFetch, signOut } from './auth'
+import { authorizedFetch } from './auth'
 
 export type AgentId =
   | 'afi-nutiriton-detector'
@@ -364,7 +364,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Ham "Failed to fetch" baştan sona Türkçe bir panelde görünmemeli.
     throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
   }
-  if (response.status === 401) signOut()
   if (!response.ok) {
     let message = 'İşlem tamamlanamadı.'
     try {

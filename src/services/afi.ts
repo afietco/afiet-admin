@@ -1,4 +1,4 @@
-import { authorizedFetch, signOut } from './auth'
+import { authorizedFetch } from './auth'
 
 // "Afi'ye sor" yönetimi. Tipleri ve uçları admin.ts'e değil buraya koyuyoruz;
 // besin kataloğunda da aynı karar verildi, tek dosya gereksiz şişiyordu.
@@ -150,7 +150,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Türkçe bir panelde bu ham tarayıcı metnini kullanıcıya göstermeyelim.
     throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
   }
-  if (response.status === 401) signOut()
   if (!response.ok) {
     let message = 'İşlem tamamlanamadı.'
     try {
