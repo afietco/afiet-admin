@@ -8,7 +8,7 @@
  * Tipler sunucu sözleşmesiyle birebirdir (internal/afi/*.go).
  */
 
-import { authorizedFetch, signOut } from './auth'
+import { authorizedFetch } from './auth'
 
 export type Macros = { kcal: number; protein: number; carb: number; fat: number }
 
@@ -49,7 +49,6 @@ async function request<T>(path: string, body: unknown): Promise<T> {
   } catch {
     throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
   }
-  if (response.status === 401) signOut()
   if (!response.ok) {
     let message = 'Simülasyon çalıştırılamadı.'
     try {
@@ -157,7 +156,6 @@ export async function simAskStream(
     if (signal.aborted) throw new DOMException('durduruldu', 'AbortError')
     throw new Error('Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.')
   }
-  if (response.status === 401) signOut()
   if (!response.ok || !response.body) {
     throw new Error('Simülasyon çalıştırılamadı.')
   }

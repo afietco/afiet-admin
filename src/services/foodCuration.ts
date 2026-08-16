@@ -60,7 +60,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { authorizedFetch, signOut } from './auth'
+import { authorizedFetch } from './auth'
 import { AbortedError, emptyFilters, foodsApi, type Food } from './foods'
 import type { CatalogNeighbor } from './foodQuality'
 
@@ -181,7 +181,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (err instanceof DOMException && err.name === 'AbortError') throw new AbortedError()
     throw err
   }
-  if (response.status === 401) signOut()
   if (response.status === 404) throw new MissingEndpointError(path)
   if (!response.ok) {
     let message = 'İşlem tamamlanamadı.'

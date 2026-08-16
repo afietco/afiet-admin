@@ -12,9 +12,31 @@ npm run dev
 ```
 
 Backend tarafında migration'ları uygulayın ve admin kullanıcısı için JWT'de
-`admin` rolü veya `ADMIN_EMAILS` allowlist'i tanımlayın. Frontend token'ları
-kalıcı local storage yerine tarayıcı oturumu boyunca `sessionStorage` içinde
-tutar.
+`admin` rolü veya `ADMIN_EMAILS` allowlist'i tanımlayın.
+
+## Oturum (services/auth.ts)
+
+- **Pencere: kayan 30 gün.** Panele her uğrayış "son kullanım" damgasını
+  tazeler; 30 gün hiç uğranmazsa oturum kendiliğinden düşer ve token silinir.
+  Pencereyi biz uygularız: Stack Auth kendi refresh token'ını daha erken
+  geçersiz kılarsa akış yine giriş ekranına çıkar.
+- **Saklama:** refresh token `localStorage`ta (tarayıcı kapansa da oturum
+  sürsün diye), access token YALNIZ bellekte. Eskiden ikisi de
+  `sessionStorage`taydı, yani her yeni sekme yeniden giriş demekti.
+- **Yenileme:** Stack Auth access token'ı varsayılan olarak **10 dakikada**
+  dolar (`STACK_ACCESS_TOKEN_EXPIRATION_TIME`, bulut sürümünde bize kapalı).
+  Bu yüzden yenileme tepkisel değil: bitişine 90 sn kala zamanlayıcıyla, sekme
+  öne geldiğinde ve ağ geri geldiğinde peşinen yenilenir. Yenileme TEK
+  UÇUŞLUDUR; eşzamanlı on istek tek bir yenileme çağrısı doğurur.
+- **Düşüş:** oturum nerede biterse bitsin (istek sırasında, arka planda, başka
+  sekmede çıkışta) kullanıcı bozuk ekranda bırakılmaz; `/giris`e gider,
+  `sebep` query'si cümleyi kurar, `devam` query'si giriş sonrası kaldığı yere
+  döndürür (yalnız uygulama içi yollar kabul edilir).
+- **Yetki:** admin yetkisi açılışta ve en fazla 10 dakikada bir `/v1/me` +
+  `/v1/admin/summary` ile yeniden doğrulanır. 403 tek başına oturumu kapatmaz
+  (bazı uçlar iş kuralı için de 403 döner); karar yetki kaynağına sorularak
+  verilir. Ağ/5xx hatası oturum hakkında bir şey söylemez, oturumu düşürmez.
+- Servisler 401'i kendileri yorumlamaz; tek karar noktası `authorizedFetch`tir.
 
 ## Ekranlar
 

@@ -1,5 +1,5 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import { auth, initializeAuth } from './services/auth'
+import { createRouter, createWebHistory, type RouteLocationRaw } from 'vue-router'
+import { auth, ensureSession, registerSessionEndHandler, type SessionEndReason } from './services/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -36,9 +36,31 @@ const router = createRouter({
   ],
 })
 
+/**
+ * Giriş ekranına giderken iki şey taşınır: neden düştüğü (`sebep`) ve nereden
+ * düştüğü (`devam`). İkincisi yalnız uygulama içi bir yol olabilir; dışarıdan
+ * gelen "//baska-site" gibi bir değer yönlendirmeye çevrilmez.
+ */
+function loginTarget(from: string, reason: SessionEndReason | null): RouteLocationRaw {
+  const query: Record<string, string> = {}
+  if (reason) query.sebep = reason
+  if (from && from.startsWith('/') && !from.startsWith('//') && from !== '/' && !from.startsWith('/giris')) {
+    query.devam = from
+  }
+  return { name: 'login', query }
+}
+
+// Oturum gezinme dışında bittiğinde (istek sırasında, arka planda, başka
+// sekmede çıkışta) kullanıcı bozuk ekranda kalmasın: doğrudan girişe al.
+registerSessionEndHandler((reason) => {
+  const current = router.currentRoute.value
+  if (current.name === 'login' && current.query.sebep === reason) return
+  void router.replace(loginTarget(current.fullPath, reason)).catch(() => {})
+})
+
 router.beforeEach(async (to) => {
-  await initializeAuth()
-  if (!to.meta.public && auth.status !== 'authenticated') return { name: 'login' }
+  await ensureSession()
+  if (!to.meta.public && auth.status !== 'authenticated') return loginTarget(to.fullPath, auth.endReason)
   if (to.name === 'login' && auth.status === 'authenticated') return { name: 'dashboard' }
 })
 
