@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { AnalyticsData } from '../../services/analytics'
+import { computed, ref } from 'vue'
+import Button from 'primevue/button'
+import { analyticsApi, type AnalyticsData } from '../../services/analytics'
 import { CHANNEL_TONE, fmt, pct } from './shared'
+import { useAnalyticsStore } from './shared'
 
 const props = defineProps<{ data: AnalyticsData }>()
+const { state } = useAnalyticsStore()
 
 const channelTotal = computed(() => props.data.channels.reduce((s, c) => s + c.visits, 0))
 const refTotal = computed(() => props.data.referrers.reduce((s, r) => s + r.visits, 0))
@@ -11,13 +14,49 @@ const utmBlocks = computed(() => [
   { caption: 'KAYNAK (utm_source)', rows: props.data.utm.source },
   { caption: 'ORTAM (utm_medium)', rows: props.data.utm.medium },
   { caption: 'KAMPANYA (utm_campaign)', rows: props.data.utm.campaign },
+  { caption: 'TERİM (utm_term)', rows: props.data.utm.term ?? [] },
 ])
 const utmMax = (rows: { visits: number }[]) => Math.max(...rows.map((r) => r.visits), 1)
+
+/* Kreatif kırılımı: hangi utm_content ziyaret getirdi, kaçı mağazaya tıkladı /
+   bültene yazıldı. Reklam kanalının kendi tıklama sayısını bizim tarafımızdan
+   doğrulamanın tek yolu. */
+const contentRows = computed(() => props.data.utm.content ?? [])
+const contentMax = computed(() => Math.max(...contentRows.value.map((r) => r.visits), 1))
+
+const conv = computed(() => props.data.webConversions ?? { magazaPlay: 0, magazaAppstore: 0, bulten: 0, withClickId: 0 })
+const convTotal = computed(() => conv.value.magazaPlay + conv.value.magazaAppstore + conv.value.bulten)
+
+/* Google Ads offline conversion CSV'si: sitede Google etiketi yok, dönüşümler
+   tıklama kimliğiyle eşlenip elle yüklenir (Google Ads → Hedefler → Dönüşümler
+   → Yüklemeler). Dosya adı aralığı ve günü taşır. */
+const csvBusy = ref(false)
+const csvError = ref('')
+async function downloadCsv() {
+  csvBusy.value = true
+  csvError.value = ''
+  try {
+    const text = await analyticsApi.adsConversionsCsv(state.range)
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `afiet-google-ads-donusumler-${state.range}-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    csvError.value = e instanceof Error ? e.message : 'İndirilemedi.'
+  } finally {
+    csvBusy.value = false
+  }
+}
 </script>
 
 <template>
   <div class="tab-body">
-    <p class="analytics-note"><i class="pi pi-directions" /> Ziyaretçi nereden geldi: referrer başlığı kanallara ayrılır; bağlantıdaki <span class="mono">?utm_*</span> parametreleri kampanya kırılımını verir.</p>
+    <p class="analytics-note"><i class="pi pi-directions" /> Ziyaretçi nereden geldi: referrer başlığı kanallara ayrılır; bağlantıdaki <span class="mono">?utm_*</span> parametreleri kampanya kırılımını verir. Reklam tıklama kimliği (<span class="mono">gclid</span>) girişte saklanır, mağaza tıklaması ve bülten kaydıyla eşlenir.</p>
 
     <article class="panel-card pad">
       <div class="panel-title sm"><div><p>EDİNİM</p><h2>Kanallar</h2></div></div>
@@ -51,6 +90,50 @@ const utmMax = (rows: { visits: number }[]) => Math.max(...rows.map((r) => r.vis
             </li>
           </ul>
           <p v-else class="board-empty">Kayıt yok</p>
+        </div>
+      </article>
+    </div>
+
+    <div class="split-grid">
+      <article class="panel-card pad">
+        <div class="panel-title sm"><div><p>KREATİF (utm_content)</p><h2>Hangi reklam ne getirdi</h2></div></div>
+        <p class="analytics-note">Ziyaret ve o kreatiften gelen ziyaretçilerin aralık içindeki mağaza tıklaması / bülten kaydı (son giriş sayılır). Meta ve Google'ın kendi tıklama sayısının bizim taraftaki karşılığı.</p>
+        <ul v-if="contentRows.length" class="src-list tight">
+          <li v-for="row in contentRows" :key="row.value">
+            <div class="src-row">
+              <span class="src-name mono">{{ row.value }}</span>
+              <span class="src-val">{{ fmt(row.visits) }} ziyaret · {{ fmt(row.magaza) }} mağaza · {{ fmt(row.bulten) }} bülten</span>
+            </div>
+            <div class="mini-track"><div class="mini-fill amber" :style="{ width: `${pct(row.visits, contentMax)}%` }" /></div>
+          </li>
+        </ul>
+        <p v-else class="board-empty">Kayıt yok</p>
+      </article>
+
+      <article class="panel-card pad">
+        <div class="panel-title sm"><div><p>WEB DÖNÜŞÜMLERİ</p><h2>Mağaza tıklaması ve bülten</h2></div></div>
+        <ul class="src-list tight">
+          <li>
+            <div class="src-row"><span class="src-name">Google Play tıklaması</span><span class="src-val">{{ fmt(conv.magazaPlay) }}</span></div>
+            <div class="mini-track"><div class="mini-fill" :style="{ width: `${pct(conv.magazaPlay, convTotal)}%` }" /></div>
+          </li>
+          <li>
+            <div class="src-row"><span class="src-name">App Store tıklaması</span><span class="src-val">{{ fmt(conv.magazaAppstore) }}</span></div>
+            <div class="mini-track"><div class="mini-fill" :style="{ width: `${pct(conv.magazaAppstore, convTotal)}%` }" /></div>
+          </li>
+          <li>
+            <div class="src-row"><span class="src-name">Bülten kaydı</span><span class="src-val">{{ fmt(conv.bulten) }}</span></div>
+            <div class="mini-track"><div class="mini-fill coral" :style="{ width: `${pct(conv.bulten, convTotal)}%` }" /></div>
+          </li>
+          <li>
+            <div class="src-row"><span class="src-name">Reklam tıklama kimliğiyle eşlenen</span><span class="src-val">{{ fmt(conv.withClickId) }} · {{ pct(conv.withClickId, convTotal) }}%</span></div>
+            <div class="mini-track"><div class="mini-fill amber" :style="{ width: `${pct(conv.withClickId, convTotal)}%` }" /></div>
+          </li>
+        </ul>
+        <p class="analytics-note">Google Ads'e "offline conversion" olarak elle yüklenir: dönüşüm adları <span class="mono">web_magaza_tik</span> ve <span class="mono">web_bulten_kayit</span>, saat dilimi Europe/Istanbul. Yalnız kimlikli satırlar dosyaya girer.</p>
+        <div class="conv-actions">
+          <Button label="Google Ads CSV indir" icon="pi pi-download" outlined size="small" :loading="csvBusy" :disabled="conv.withClickId === 0" @click="downloadCsv" />
+          <span v-if="csvError" class="board-empty">{{ csvError }}</span>
         </div>
       </article>
     </div>
