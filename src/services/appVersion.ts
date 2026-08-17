@@ -16,12 +16,22 @@ export interface PlatformVersionGate {
   message: string | null
 }
 
+/**
+ * Uygulamanın sürüm kapısıyla birlikte okuduğu anahtarlar. Bugün tek anahtar
+ * var: yeni hesapta Bugün panosu bölüm bölüm mü açılsın (yayınlandığı gibi),
+ * hepsi birden mi. Boş değer "yayınlandığı gibi" demektir.
+ */
+export interface AppFlags {
+  ftueDoors: 'progressive' | 'open' | null
+}
+
 export interface AppVersionGate {
   ios: PlatformVersionGate
   android: PlatformVersionGate
+  flags?: AppFlags | null
 }
 
-export type AppVersionPlatform = keyof AppVersionGate
+export type AppVersionPlatform = 'ios' | 'android'
 
 export const PLATFORM_LABELS: Record<AppVersionPlatform, string> = {
   ios: 'iOS · App Store',
@@ -39,7 +49,17 @@ export const appVersionApi = {
       method: 'PUT',
       body: JSON.stringify({ value }),
     }),
+  putFlags: (value: AppFlags) =>
+    webRequest<{ gate: AppVersionGate }>('/api/admin/app-version/flags', {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    }),
 }
+
+export const FTUE_DOOR_OPTIONS: { value: NonNullable<AppFlags['ftueDoors']>; label: string }[] = [
+  { value: 'progressive', label: 'Bölüm bölüm (yayınlandığı gibi)' },
+  { value: 'open', label: 'Hepsi açık' },
+]
 
 /** Panelde yazılanı gövdeye çevirir; boş alan "kural yok" demektir. Biçim
  *  denetiminin TEK yetkilisi sunucudur, buradaki yalnız anlık geri bildirim. */
