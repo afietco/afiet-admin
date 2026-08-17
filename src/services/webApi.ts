@@ -98,6 +98,23 @@ export async function webRequest<T>(path: string, init?: RequestInit): Promise<T
   return response.json() as Promise<T>
 }
 
+/**
+ * Web API'sinden dosya indirme (CSV vb.): kimlikli istek, ham metin döner.
+ * JSON değil, o yüzden webRequest'ten ayrı; hata gövdesi yine JSON olabilir.
+ */
+export async function webRequestText(path: string): Promise<string> {
+  const response = await webFetch(path)
+  if (!response.ok) {
+    let code = ''
+    try {
+      const body = await response.json()
+      code = body?.statusMessage || body?.error?.message || body?.message || ''
+    } catch { /* boş gövde */ }
+    throw new Error(humanizeSeoError(String(code)))
+  }
+  return response.text()
+}
+
 const q = (params: Record<string, string>) => {
   const search = new URLSearchParams(params).toString()
   return search ? `?${search}` : ''
