@@ -5,9 +5,11 @@ import { useToast } from 'primevue/usetoast'
 import PageHeader from '../../components/PageHeader.vue'
 import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
 import PlatformGateCard from './PlatformGateCard.vue'
+import AppFlagsCard from './AppFlagsCard.vue'
 import {
   appVersionApi,
   emptyPlatformGate,
+  type AppFlags,
   type AppVersionGate,
   type AppVersionPlatform,
   type PlatformVersionGate,
@@ -24,7 +26,7 @@ const toast = useToast()
 const gate = ref<AppVersionGate | null>(null)
 const loading = ref(false)
 const error = ref('')
-const saving = ref<AppVersionPlatform | null>(null)
+const saving = ref<AppVersionPlatform | 'flags' | null>(null)
 
 async function load() {
   loading.value = true
@@ -42,6 +44,28 @@ async function save(platform: AppVersionPlatform, value: PlatformVersionGate) {
   saving.value = platform
   try {
     gate.value = (await appVersionApi.put(platform, value)).gate
+    toast.add({
+      severity: 'success',
+      summary: 'Kaydedildi',
+      detail: 'Uygulamalar en geç bir dakika içinde yeni ayarı okur.',
+      life: 4000,
+    })
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Kaydedilemedi',
+      detail: err instanceof Error ? err.message : 'Bilinmeyen hata',
+      life: 6000,
+    })
+  } finally {
+    saving.value = null
+  }
+}
+
+async function saveFlags(value: AppFlags) {
+  saving.value = 'flags'
+  try {
+    gate.value = (await appVersionApi.putFlags(value)).gate
     toast.add({
       severity: 'success',
       summary: 'Kaydedildi',
@@ -109,6 +133,11 @@ onMounted(load)
         :saving="saving === 'android'"
         :db-connected="true"
         @save="(value) => save('android', value)"
+      />
+      <AppFlagsCard
+        :value="gate.flags ?? { ftueDoors: null }"
+        :saving="saving === 'flags'"
+        @save="saveFlags"
       />
     </div>
   </div>
