@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
+import SelectButton from 'primevue/selectbutton'
 import PageHeader from '../components/PageHeader.vue'
 import AdminPlaceholder from '../components/AdminPlaceholder.vue'
 import LineChart from '../components/LineChart.vue'
@@ -46,6 +47,39 @@ const trendLabels = computed(() => (d.value?.growth.weeklyTrend ?? []).map((p) =
 const trendSeries = computed(() => [
   { label: 'Yeni kullanıcı', color: SERIES_COLORS.views, values: (d.value?.growth.weeklyTrend ?? []).map((p) => p.value) },
 ])
+
+// ── Günlük kayıt tutan kişi ─────────────────────────────────────────────────
+//
+// Uç son 90 günü sıfır dolgulu tek parça döndürür; pencere seçimi burada
+// kesilir, yani 30/60/90 arasında geçiş yeni istek atmaz.
+const DAILY_RANGES = [
+  { label: '30 gün', value: 30 },
+  { label: '60 gün', value: 60 },
+  { label: '90 gün', value: 90 },
+]
+const dailyRange = ref(30)
+
+const TR_MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+/**
+ * "2026-08-22" → "22 Ağu". Tarih elle ayrıştırılır: `new Date(iso)` UTC gece
+ * yarısı olarak okunur ve negatif saat diliminde etiket bir gün geriye kayar.
+ */
+function dayLabel(iso: string): string {
+  const [, month, day] = iso.split('-').map(Number)
+  return `${day} ${TR_MONTHS[(month || 1) - 1]}`
+}
+
+const dailyWindow = computed(() => (d.value?.habit.dailyLoggers ?? []).slice(-dailyRange.value))
+const dailyLabels = computed(() => dailyWindow.value.map((p) => dayLabel(p.date)))
+const dailySeries = computed(() => [
+  { label: 'Kayıt tutan kişi', color: SERIES_COLORS.views, values: dailyWindow.value.map((p) => p.users) },
+])
+/** Pencerenin zirvesi; eşitlikte EN SON gün kazanır (yakın olan daha anlamlı). */
+const dailyPeak = computed(() => {
+  let peak: { date: string; users: number } | null = null
+  for (const row of dailyWindow.value) if (!peak || row.users >= peak.users) peak = row
+  return peak && peak.users > 0 ? { label: dayLabel(peak.date), users: peak.users } : null
+})
 
 // Oturum telemetrisi mobil 0.9 ile yayılıyor; hiç oturum yoksa şerit not düşer.
 const sess = computed(() => d.value?.habit.sessions)
@@ -244,7 +278,31 @@ const cardValue = (c: { value: number | null; format: 'count' | 'duration' }) =>
         </div>
 
         <article class="panel-card pad" style="margin-top: 15px">
-          <div class="panel-title sm"><div><p>AKTİVİTE</p><h2>Alışkanlık</h2></div></div>
+          <div class="panel-title sm">
+            <div><p>AKTİVİTE</p><h2>Alışkanlık</h2></div>
+            <SelectButton
+              v-model="dailyRange"
+              :options="DAILY_RANGES"
+              option-label="label"
+              option-value="value"
+              :allow-empty="false"
+              size="small"
+            />
+          </div>
+
+          <div class="daily-block">
+            <p class="mini-cap">GÜNLÜK KAYIT TUTAN KİŞİ <span>· öğün yazan farklı kişi, gün gün</span></p>
+            <LineChart :labels="dailyLabels" :series="dailySeries" :height="200" />
+            <p class="note-line subtle">
+              <i class="pi pi-info-circle" />
+              <span>
+                <template v-if="dailyPeak">Zirve {{ dailyPeak.label }}: {{ fmt(dailyPeak.users) }} kişi. </template>
+                Ölçüt öğün kaydı: profiline dokunan ya da yalnız uygulamayı açan kişi burada sayılmaz.
+                Son gün bugün, henüz bitmedi.
+              </span>
+            </p>
+          </div>
+
           <div class="habit-wide">
             <div class="dua-row">
               <div class="dua-cell"><strong>{{ fmt(d.habit.dau) }}</strong><small>DAU (öğün)</small></div>
@@ -504,6 +562,14 @@ export default { name: 'GrowthView' }
 .gap-body { margin-top: 13px; display: grid; gap: 13px; }
 .gap-list { margin: 0; padding-left: 17px; display: grid; gap: 9px; color: #8a9a8f; font-size: 11px; line-height: 1.55; }
 .gap-list strong { color: #566a5e; font-weight: 850; }
+
+/* Günlük nabız, aynı kartın içinde ama kendi bandı: altındaki DAU/WAU bloğu
+   aynı ölçütün özeti olduğu için ince bir çizgiyle ayrılıyor, ayrı kart değil. */
+.daily-block { margin-top: 4px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.daily-block .mini-cap { margin: 0 0 6px; }
+.daily-block .mini-cap span { color: #a9b5ac; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.daily-block .note-line { margin-top: 10px; }
+.daily-block + .habit-wide { margin-top: 18px; }
 
 @media (max-width: 1100px) {
   .ratio-row { grid-template-columns: 1fr; }

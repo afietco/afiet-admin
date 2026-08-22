@@ -12,6 +12,13 @@ export type FunnelStep = { key: string; label: string; value: number; hint: stri
 /** rate: eylem yaptı (öğün/ölçüm/su) · openRate: uygulamayı açtı (session_start). */
 export type RetentionRow = { key: 'd1' | 'd7' | 'd30'; label: string; days: number; rate: number; openRate: number; cohort: number }
 export type DistRow = { bucket: string; users: number }
+/**
+ * Günlük aktiflik satırı: `date` ISO gün (YYYY-MM-DD), `users` o gün EN AZ BİR
+ * ÖĞÜN yazan farklı kişi sayısı. Uç son 90 günü sıfır dolgulu döndürür, panel
+ * kendi penceresini (30/60/90) bunun sonundan keser. Son satır bugündür ve gün
+ * bitmediği için doğal olarak düşüktür.
+ */
+export type DailyLoggerRow = { date: string; users: number }
 export type MealTypeRow = { meal: string; label: string; count: number }
 export type EventStat = { key: string; label: string; value: number | null; unit?: string; live: boolean }
 /** Oturum telemetrisi alışkanlık metrikleri; telemetri yayılmadıysa hepsi 0. */
@@ -52,6 +59,8 @@ export type GrowthData = {
     wau: number
     avgRhythmDays: number
     activeDayDistribution: DistRow[]
+    /** Son 90 gün, gün gün öğün yazan farklı kişi (sıfır dolgulu, sonu bugün). */
+    dailyLoggers: DailyLoggerRow[]
     mealTypes: MealTypeRow[]
     sessions: SessionStats
   }
