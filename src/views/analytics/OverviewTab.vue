@@ -21,7 +21,8 @@ const cards = computed(() => {
     { label: 'Görüntülenme', value: t.views, tone: 'green', icon: 'pi pi-eye', note: 'toplam sayfa görüntüleme', delta: t.deltaViews },
     { label: 'Tekil ziyaretçi', value: t.visitors, tone: 'blue', icon: 'pi pi-users', note: 'birinci-taraf çerezle', delta: t.deltaVisitors },
     { label: 'Sayfa / ziyaret', value: t.viewsPerVisit, tone: 'amber', icon: 'pi pi-clone', note: `ort. ${duration(t.avgDuration)} kalış`, delta: null },
-    { label: 'Beta başvurusu', value: t.conversions, tone: 'coral', icon: 'pi pi-sparkles', note: `%${t.conversionRate} ziyaretçi`, delta: null },
+    { label: 'Mağaza tıklaması', value: t.storeClicks, tone: 'coral', icon: 'pi pi-mobile', note: `%${t.storeClickRate} ziyaretçi · çerez onaylıysa`, delta: null },
+    { label: 'Bülten kaydı', value: t.newsletter, tone: 'blue', icon: 'pi pi-envelope', note: `%${t.newsletterRate} ziyaretçi · onaydan bağımsız`, delta: null },
   ]
 })
 </script>
