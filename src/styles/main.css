@@ -477,6 +477,13 @@ a { color: inherit; }
 .footer-when { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: #8d9087; font-size: 11px; font-weight: 750; }
 .footer-when i { color: var(--green); font-size: 11px; }
 .src-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: var(--mint); color: #065f46; font-size: 9px; font-weight: 850; }
+/* Ölçümün nereden geldiği: elle girilen, CSV'den yüklenen, mağaza API'sinden
+   otomatik gelen. Renk ayrımı kozmetik değil: otomatik satır silinemez ve
+   elle satır otomatik senkron tarafından ezilmez, ikisi farklı davranır. */
+.src-badge.cell { margin-left: 0; }
+.src-badge.api { background: #d9f2e6; color: #065f46; }
+.src-badge.elle { background: #fdf0dd; color: #7c5a1e; }
+.src-badge.csv { background: #e7eef7; color: #2f4d6b; }
 
 .attach-panel { display: grid; gap: 12px; }
 /* .analytics-note ile aynı sebeple BLOK: flex olduğunda içindeki her
