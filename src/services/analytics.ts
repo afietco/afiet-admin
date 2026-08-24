@@ -38,10 +38,25 @@ export type AnalyticsData = {
     viewsPerVisit: number
     /** Ortalama oturum süresi (sn). */
     avgDuration: number
-    /** Aralıktaki beta başvurusu. */
-    conversions: number
-    /** conversions / visitors (%). */
-    conversionRate: number
+    /**
+    * İki dönüşüm AYRI durur (kullanıcı kararı, 25 Ağu 2026); afiet-web'in
+    * `server/utils/analyticsReport.ts` tipinin aynasıdır, biri değişirse ikisi
+    * birlikte değişir.
+    *
+    * Beta başvurusu 24 Ağu'da emekli oldu ve tek bir `conversions` alanı
+    * kalmıştı; o alan bugünden sonra sonsuza kadar 0 okuyacaktı.
+    *
+    * Mağaza tıklaması ürünün asıl dönüşümüdür ama ÇEREZ ONAYININ ARKASINDADIR,
+    * yani gerçek sayı gösterilenden yüksektir. Bülten kaydı sunucu tarafında
+    * düşer ve onaya bağlı değildir, bu yüzden ücretli trafiğin daha güvenilir
+    * sayacıdır. İkisi tek sayıya toplanırsa bu fark gizlenir.
+    */
+    storeClicks: number
+    /** storeClicks / visitors (%). */
+    storeClickRate: number
+    newsletter: number
+    /** newsletter / visitors (%). */
+    newsletterRate: number
     deltaViews: number
     deltaVisitors: number
   }
