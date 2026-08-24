@@ -163,6 +163,32 @@ export type AiBotData = {
   kapsam: { tamKapsananYollar: string[]; nabizYollari: string[]; not: string }
 }
 
+/**
+ * buyur.afiet.co funnel sayfası (afiet-web `GET /api/admin/analytics/buyur`).
+ *
+ * ÖLÇÜM ÇEREZSİZ: o sayfada ziyaretçi kimliği yok. Bu yüzden burada "tekil
+ * ziyaretçi" alanı da YOKTUR ve panelde öyle bir sayı gösterilmez; soru
+ * "kaç kişi" değil, "kaç görüntüleme, hangi bağlantıya kaç tık".
+ *
+ * `live: false` = `buyur_events` tablosu henüz hiç yok, yani sayfa tek bir
+ * ziyaret bile almamış. Bağlantı hatasından ayrı bir durumdur.
+ */
+export type BuyurGrup = 'magaza' | 'icerik' | 'sosyal' | 'diger'
+
+export type BuyurData = {
+  generatedAt: string
+  live: boolean
+  range: Range
+  totals: { goruntuleme: number; tik: number; tikOrani: number; deltaGoruntuleme: number; deltaTik: number }
+  seri: { gun: string; goruntuleme: number; tik: number }[]
+  baglantilar: { anahtar: string; etiket: string; grup: BuyurGrup; tik: number; pay: number }[]
+  gruplar: { grup: BuyurGrup; label: string; tik: number }[]
+  cihazlar: { key: string; label: string; sayi: number }[]
+  isletimSistemleri: { key: string; label: string; sayi: number }[]
+  ulkeler: { key: string; label: string; sayi: number }[]
+  kaynaklar: { host: string; label: string; sayi: number }[]
+}
+
 export const analyticsApi = {
   get: (range: Range) => webRequest<AnalyticsData>(`/api/admin/analytics?range=${range}`),
   aiBots: (range: Range) => webRequest<AiBotData>(`/api/admin/ai-bots?range=${range}`),
@@ -177,6 +203,7 @@ export const analyticsApi = {
       method: 'PUT',
       body: JSON.stringify({ entries, range }),
     }),
+  buyur: (range: Range) => webRequest<BuyurData>(`/api/admin/analytics/buyur?range=${range}`),
   search: (range: Range) => webRequest<GscData>(`/api/admin/analytics/search?range=${range}`),
   /** Google Ads offline conversion CSV'si (metin); panel dosya olarak indirtir. */
   adsConversionsCsv: (range: Range) => webRequestText(`/api/admin/analytics/ads-conversions?range=${range}`),
