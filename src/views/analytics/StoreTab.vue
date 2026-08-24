@@ -13,9 +13,27 @@ import EmptyState from '../../components/EmptyState.vue'
 import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
 import { analyticsApi, type StoreData, type StoreEntryInput, type StorePlatform } from '../../services/analytics'
 import { parseDelimited } from '../content/metricsImport'
-import { SERIES_COLORS, fmt, shortDate, useAnalyticsStore } from './shared'
+import { SERIES_COLORS, fmt, pct, shortDate, useAnalyticsStore } from './shared'
 
 const PLATFORM_LABEL: Record<string, string> = { ios: 'App Store', android: 'Google Play' }
+const SOURCE_LABEL: Record<string, string> = { elle: 'elle', csv: 'CSV', api: 'otomatik' }
+
+/**
+ * Apple'ın kaynak türü etiketlerinin Türkçesi. Sözlük BURADA, veritabanında
+ * değil: Apple yeni bir tür eklediği gün onu "diğer"e gömmek yerine ham
+ * etiketiyle göstermek istiyoruz, o yüzden eşleşmeyen değer olduğu gibi geçer.
+ */
+const TRAFFIC_LABEL: Record<string, string> = {
+  'App Store Search': 'Arama',
+  'App Store Browse': 'Keşif',
+  'App Referrer': 'Uygulama yönlendirmesi',
+  'Web Referrer': 'Web yönlendirmesi',
+  'App Store Widget': 'Mağaza widget’ı',
+  'Institutional Purchase': 'Kurumsal satın alma',
+  Unavailable: 'Bilinmiyor',
+}
+const trafficLabel = (raw: string) => TRAFFIC_LABEL[raw] ?? raw
+const TRAFFIC_TONE = ['green', 'blue', 'coral', 'amber']
 
 const { state } = useAnalyticsStore()
 const data = ref<StoreData | null>(null)
@@ -40,12 +58,21 @@ const cards = computed(() => {
   const t = data.value?.totals
   if (!t) return []
   return [
-    { label: 'iOS indirme', value: fmt(t.ios), tone: 'green', icon: 'pi pi-apple', note: 'şimdilik TestFlight kurulumları' },
-    { label: 'Android indirme', value: fmt(t.android), tone: 'blue', icon: 'pi pi-android', note: 'Play yayını bekleniyor' },
-    { label: 'Mağaza sayfası', value: fmt(t.pageViews), tone: 'amber', icon: 'pi pi-eye', note: 'sayfa görüntüleme (elle)' },
+    { label: 'Gösterim', value: fmt(t.impressions), tone: 'green', icon: 'pi pi-search', note: 'aramada ve keşifte görünme' },
+    { label: 'Mağaza sayfası', value: fmt(t.pageViews), tone: 'amber', icon: 'pi pi-eye', note: 'ürün sayfası görüntüleme' },
     { label: 'Dönüşüm', value: `%${t.conversionPct}`, tone: 'coral', icon: 'pi pi-percentage', note: 'görüntüleyen → indiren' },
+    { label: 'iOS indirme', value: fmt(t.ios), tone: 'green', icon: 'pi pi-apple', note: 'App Store' },
+    { label: 'Android indirme', value: fmt(t.android), tone: 'blue', icon: 'pi pi-android', note: 'Play yayını bekleniyor' },
   ]
 })
+
+/**
+ * Kaynak kırılımı yalnız API'den gelir; boşsa bölüm hiç çizilmez. Sıfır bir
+ * kırılım göstermek "hiçbir yerden gelmediler" demek olurdu, oysa doğrusu
+ * "henüz ölçülmedi".
+ */
+const traffic = computed(() => data.value?.trafficSources ?? [])
+const trafficTotal = computed(() => traffic.value.reduce((s, r) => s + r.impressions, 0))
 
 const chartLabels = computed(() => (data.value?.series ?? []).map((p) => shortDate(p.date)))
 const chartSeries = computed(() => [
@@ -94,6 +121,7 @@ async function saveEntry() {
         platform: form.platform,
         downloads: form.downloads ?? 0,
         pageViews: form.pageViews,
+        impressions: null,
         note: form.note.trim(),
         source: 'elle',
       },
@@ -178,7 +206,7 @@ function onFile(evt: Event) {
         importProblem.value = `Satır ${i + 1}: sayfa görüntüleme okunamadı ("${pvRaw}").`
         return
       }
-      out.push({ metricDate: date, platform, downloads, pageViews, note: cells[4] ?? '', source: 'csv' })
+      out.push({ metricDate: date, platform, downloads, pageViews, impressions: null, note: cells[4] ?? '', source: 'csv' })
     }
     if (!out.length) importProblem.value = 'Dosyada okunabilir satır yok.'
     importRows.value = out
@@ -208,10 +236,10 @@ async function runImport() {
   <div class="tab-body">
     <template v-if="data">
       <p class="analytics-note">
-        <i class="pi pi-shopping-bag" /> App Store &amp; Google Play. Şimdilik <strong>elle/CSV</strong> girilir; mağaza yayınından sonra Connect ve Play API'leri otomatik bağlanacak.
+        <i class="pi pi-shopping-bag" /> App Store Connect her sabah <strong>07:30</strong>'da kendi raporunu yazar; Apple bir günü bir iki gün gecikmeyle üretir. Google Play yayınlanınca eklenecek. Elle girdiğin bir günü otomatik senkron <strong>ezmez</strong>.
       </p>
 
-      <section class="metric-grid" aria-label="Mağaza özet metrikleri">
+      <section class="metric-grid five" aria-label="Mağaza özet metrikleri">
         <article v-for="c in cards" :key="c.label" class="metric-card" :class="c.tone">
           <div class="metric-top"><span>{{ c.label }}</span><i :class="c.icon" /></div>
           <strong>{{ c.value }}</strong>
@@ -224,9 +252,22 @@ async function runImport() {
         <LineChart :labels="chartLabels" :series="chartSeries" :height="210" />
       </article>
 
+      <article v-if="traffic.length" class="panel-card pad">
+        <div class="panel-title sm"><div><p>APP STORE</p><h2>Seni nerede gördüler</h2></div></div>
+        <div class="src-list">
+          <div v-for="(row, i) in traffic" :key="row.sourceType" class="src-item">
+            <div class="src-row">
+              <span class="src-name">{{ trafficLabel(row.sourceType) }}</span>
+              <span class="src-val">{{ fmt(row.impressions) }} gösterim · {{ fmt(row.pageViews) }} sayfa</span>
+            </div>
+            <div class="mini-track"><div class="mini-fill" :class="TRAFFIC_TONE[i % TRAFFIC_TONE.length]" :style="{ width: `${pct(row.impressions, trafficTotal)}%` }" /></div>
+          </div>
+        </div>
+      </article>
+
       <section class="table-card">
         <div class="table-toolbar">
-          <span class="result-count" style="margin-left: 0">ELLE GİRİLEN ÖLÇÜMLER</span>
+          <span class="result-count" style="margin-left: 0">GÜNLÜK ÖLÇÜMLER</span>
           <span style="margin-left: auto; display: inline-flex; gap: 10px">
             <Button label="CSV içe aktar" icon="pi pi-upload" outlined :disabled="saving" @click="importOpen = true" />
             <Button label="Ölçüm ekle" icon="pi pi-plus" :disabled="saving" @click="openDialog" />
@@ -237,9 +278,14 @@ async function runImport() {
           <Column header="Tarih" sortable field="metricDate"><template #body="{ data: row }"><span class="date-cell">{{ shortDate(row.metricDate, true) }}</span></template></Column>
           <Column header="Mağaza" sortable field="platform"><template #body="{ data: row }"><span>{{ PLATFORM_LABEL[row.platform] }}</span></template></Column>
           <Column header="İndirme" sortable field="downloads"><template #body="{ data: row }"><strong class="num-cell">{{ fmt(row.downloads) }}</strong></template></Column>
+          <Column header="Gösterim" sortable field="impressions"><template #body="{ data: row }"><span class="num-cell">{{ row.impressions === null ? '·' : fmt(row.impressions) }}</span></template></Column>
           <Column header="Sayfa görüntüleme" sortable field="pageViews"><template #body="{ data: row }"><span class="num-cell">{{ row.pageViews === null ? '·' : fmt(row.pageViews) }}</span></template></Column>
+          <Column header="Kaynak" sortable field="source"><template #body="{ data: row }"><span class="src-badge cell" :class="row.source">{{ SOURCE_LABEL[row.source] ?? row.source }}</span></template></Column>
           <Column header="Not"><template #body="{ data: row }"><span class="date-cell">{{ row.note }}</span></template></Column>
-          <Column header="" style="width: 3rem"><template #body="{ data: row }"><Button icon="pi pi-trash" text severity="danger" size="small" :disabled="saving" aria-label="Sil" @click="removeEntry(row.id)" /></template></Column>
+          <!-- Otomatik satırda çöp kutusu YOK: senkron o günü bir kez okur ve
+               imini ilerletir, yani silinen satır ertesi sabah geri gelmez.
+               Düzeltmek isteyen aynı güne elle ölçüm ekler, o da üstüne yazar. -->
+          <Column header="" style="width: 3rem"><template #body="{ data: row }"><Button v-if="row.source !== 'api'" icon="pi pi-trash" text severity="danger" size="small" :disabled="saving" aria-label="Sil" @click="removeEntry(row.id)" /></template></Column>
         </DataTable>
       </section>
     </template>
