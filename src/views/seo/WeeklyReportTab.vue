@@ -253,11 +253,20 @@ const queryRows = computed(() => report.value?.snapshot.search.topQueries ?? [])
             />
           </li>
         </ul>
+        <!-- İki farklı boşluk, iki farklı cümle: hiç madde olmaması "hepsi
+             bitti" DEĞİLDİR. Liste ilk kez, raporun teslim edildiği anda
+             dolar; o zamana kadar "hepsi kapandı" demek yalan olurdu. -->
         <EmptyState
-          v-else
+          v-else-if="totalCount"
           icon="pi pi-check-circle"
           title="Açık iş yok"
-          description="Ajanın son raporundaki maddelerin hepsi kapandı. Pazartesi yeni liste gelir."
+          description="Listedeki maddelerin hepsi kapandı. Pazartesi yeni liste gelir."
+        />
+        <EmptyState
+          v-else
+          icon="pi pi-list"
+          title="Liste henüz oluşmadı"
+          description="Yapılacaklar ilk raporla birlikte düşer. Beklemek istemiyorsan 'Rapor üret' bu haftanın maddelerini listeye işler; rapor maili zaten gittiyse tekrar gönderilmez."
         />
 
         <form class="todo-add" @submit.prevent="addAction">
