@@ -83,26 +83,35 @@ export type InstagramData = {
   posts: InstagramPost[]
 }
 
-// ── Mağaza (elle/CSV; afiet-web store_metrics aynası) ───────────────────────
+// ── Mağaza (afiet-web store_metrics aynası) ─────────────────────────────────
+// Kaynak üç yerden gelir: 'elle' (panelden), 'csv' (mağaza dışa aktarımı),
+// 'api' (App Store Connect senkronu, her sabah 07:30). API elle girilmiş bir
+// günü EZMEZ, kural afiet-web'in store'unda.
 
 export type StorePlatform = 'ios' | 'android'
+export type StoreSource = 'elle' | 'csv' | 'api'
 export type StoreEntry = {
   id: number
   metricDate: string
   platform: StorePlatform
   downloads: number
   pageViews: number | null
+  /** Mağaza gösterimi; yalnız API ölçer, elle girişte null. */
+  impressions: number | null
   note: string
-  source: 'elle' | 'csv'
+  source: StoreSource
 }
 export type StoreEntryInput = Omit<StoreEntry, 'id'>
+/** Apple'ın kaynak türü kırılımı; `sourceType` HAM etikettir ("App Store Search"). */
+export type StoreTrafficSource = { sourceType: string; impressions: number; pageViews: number }
 export type StoreData = {
   generatedAt: string
   live: boolean
   range: Range
-  totals: { ios: number; android: number; pageViews: number; conversionPct: number }
+  totals: { ios: number; android: number; pageViews: number; impressions: number; conversionPct: number }
   series: { date: string; ios: number; android: number }[]
   entries: StoreEntry[]
+  trafficSources: StoreTrafficSource[]
 }
 
 // ── Arama performansı (GSC kopyası; afiet-web gsc_daily/gsc_rows aynası) ────
