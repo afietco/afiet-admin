@@ -194,7 +194,7 @@ export type BuyurData = {
   generatedAt: string
   live: boolean
   range: Range
-  totals: { goruntuleme: number; tik: number; tikOrani: number; deltaGoruntuleme: number; deltaTik: number }
+  totals: { goruntuleme: number; tik: number; tikOrani: number; deltaGoruntuleme: number | null; deltaTik: number | null }
   seri: { gun: string; goruntuleme: number; tik: number }[]
   baglantilar: { anahtar: string; etiket: string; grup: BuyurGrup; tik: number; pay: number }[]
   gruplar: { grup: BuyurGrup; label: string; tik: number }[]

@@ -7,7 +7,7 @@ import LineChart from '../../components/LineChart.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
 import { analyticsApi, type BuyurData, type BuyurGrup } from '../../services/analytics'
-import { SERIES_COLORS, fmt, shortDate, useAnalyticsStore } from './shared'
+import { SERIES_COLORS, fmt, pct, shortDate, useAnalyticsStore } from './shared'
 
 /**
  * buyur.afiet.co - funnel sayfasının kendi istatistiği.
@@ -109,6 +109,31 @@ const cards = computed(() => {
   ]
 })
 
+/**
+ * Dört kırılım DÖRT AYRI kart. Önce cihaz ve işletim sistemi tek listede
+ * alt alta duruyordu; aynı görüntülemeler iki kez sayılmış gibi okunuyordu
+ * ("Mobil 5, Masaüstü 1, iOS 4, Android 1, macOS 1" tek liste hâlinde altı
+ * satır, toplamı 12). Yüzdeler de her kartın kendi toplamına göre.
+ */
+const kirilimlar = computed(() => {
+  const d = data.value
+  if (!d) return []
+  const kart = (ustBaslik: string, baslik: string, icon: string, tone: string, satirlar: { key: string; label: string; sayi: number }[]) => ({
+    ustBaslik,
+    baslik,
+    icon,
+    tone,
+    satirlar,
+    toplam: satirlar.reduce((s, r) => s + r.sayi, 0),
+  })
+  return [
+    kart('KİM AÇTI', 'Cihaz', 'pi pi-mobile', 'green', d.cihazlar),
+    kart('KİM AÇTI', 'İşletim sistemi', 'pi pi-desktop', 'violet', d.isletimSistemleri),
+    kart('NEREDEN', 'Kaynak', 'pi pi-directions', 'coral', d.kaynaklar.map((r) => ({ key: r.host, label: r.label, sayi: r.sayi }))),
+    kart('NEREDEN', 'Ülke', 'pi pi-globe', 'green', d.ulkeler),
+  ]
+})
+
 const chartLabels = computed(() => (data.value?.seri ?? []).map((p) => shortDate(p.gun)))
 const chartSeries = computed(() => [
   { label: 'Görüntüleme', color: SERIES_COLORS.views, values: (data.value?.seri ?? []).map((p) => p.goruntuleme) },
@@ -171,34 +196,27 @@ const chartSeries = computed(() => [
             <template #body="{ data: r }"><span class="num-cell">%{{ r.pay }}</span></template>
           </Column>
           <Column header="Anahtar">
-            <template #body="{ data: r }"><span class="src-name mono">{{ r.anahtar }}</span></template>
+            <template #body="{ data: r }"><span class="buyur-key mono">{{ r.anahtar }}</span></template>
           </Column>
         </DataTable>
       </article>
 
       <div class="split-grid">
-        <article class="panel-card pad">
-          <div class="panel-title sm"><div><p>KİM AÇTI</p><h2>Cihaz ve sistem</h2></div></div>
-          <ul class="src-list tight">
-            <li v-for="r in data.cihazlar" :key="`c-${r.key}`">
-              <div class="src-row"><span class="src-name">{{ r.label }}</span><span class="src-val">{{ fmt(r.sayi) }}</span></div>
-            </li>
-            <li v-for="r in data.isletimSistemleri" :key="`o-${r.key}`">
-              <div class="src-row"><span class="src-name">{{ r.label }}</span><span class="src-val">{{ fmt(r.sayi) }}</span></div>
-            </li>
-          </ul>
-        </article>
-
-        <article class="panel-card pad">
-          <div class="panel-title sm"><div><p>NEREDEN</p><h2>Kaynak ve ülke</h2></div></div>
-          <ul class="src-list tight">
-            <li v-for="r in data.kaynaklar" :key="`k-${r.host}`">
-              <div class="src-row"><span class="src-name">{{ r.label }}</span><span class="src-val">{{ fmt(r.sayi) }}</span></div>
-            </li>
-            <li v-for="r in data.ulkeler" :key="`u-${r.key}`">
-              <div class="src-row"><span class="src-name">{{ r.label }}</span><span class="src-val">{{ fmt(r.sayi) }}</span></div>
+        <article v-for="k in kirilimlar" :key="k.baslik" class="panel-card pad">
+          <div class="panel-title sm">
+            <div><p>{{ k.ustBaslik }}</p><h2>{{ k.baslik }}</h2></div>
+            <i :class="k.icon" class="panel-glyph" />
+          </div>
+          <ul v-if="k.satirlar.length" class="src-list tight buyur">
+            <li v-for="r in k.satirlar" :key="r.key">
+              <div class="src-row">
+                <span class="src-name">{{ r.label }}</span>
+                <span class="src-val">{{ fmt(r.sayi) }} · %{{ pct(r.sayi, k.toplam) }}</span>
+              </div>
+              <div class="mini-track"><div class="mini-fill" :class="k.tone" :style="{ width: `${pct(r.sayi, k.toplam)}%` }" /></div>
             </li>
           </ul>
+          <p v-else class="note-line subtle"><i class="pi pi-info-circle" /> Bu kırılım için kayıt yok.</p>
         </article>
       </div>
     </template>
