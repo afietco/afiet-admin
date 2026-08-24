@@ -18,6 +18,7 @@ import InstagramTab from './InstagramTab.vue'
 import StoreTab from './StoreTab.vue'
 import SeoTab from './SeoTab.vue'
 import AiBotsTab from './AiBotsTab.vue'
+import BuyurTab from './BuyurTab.vue'
 import { RANGES, type Range } from '../../services/analytics'
 import { useAnalyticsStore } from './shared'
 
@@ -32,7 +33,7 @@ onMounted(load)
 
 <template>
   <div class="page-wrap">
-    <PageHeader eyebrow="GÖRÜNÜRLÜK · ANALİTİK" title="Analitik" description="afiet'in tüm görünürlüğü tek yerde: web trafiği, blog, Instagram, mağaza indirmeleri ve arama performansı. Kişi-bazlı gözetleme yok.">
+    <PageHeader eyebrow="GÖRÜNÜRLÜK · ANALİTİK" title="Analitik" description="afiet'in tüm görünürlüğü tek yerde: web trafiği, blog, Instagram, buyur funnel sayfası, mağaza indirmeleri ve arama performansı. Kişi-bazlı gözetleme yok.">
       <template v-if="onAnalyticsTab">
         <SelectButton v-model="rangeModel" :options="rangeOptions" option-label="label" option-value="value" :allow-empty="false" aria-label="Zaman aralığı" />
         <Button label="Yenile" icon="pi pi-refresh" outlined :loading="state.loading" @click="load" />
@@ -48,6 +49,7 @@ onMounted(load)
         <Tab value="kitle">Kitle</Tab>
         <Tab value="instagram">Instagram</Tab>
         <Tab value="magaza">Mağaza</Tab>
+        <Tab value="buyur">buyur</Tab>
         <Tab value="botlar">AI botları</Tab>
         <Tab value="seo">SEO &amp; GEO</Tab>
       </TabList>
@@ -59,6 +61,7 @@ onMounted(load)
         <TabPanel value="kitle"><AudienceTab v-if="data" :data="data" /><AdminPlaceholder v-else icon="pi pi-users" title="Analitik verisi getirilemedi" description="Veri şu an alınamadı. Bağlantını kontrol edip yeniden dene." retryable :loading="state.loading" @retry="load" /></TabPanel>
         <TabPanel value="instagram"><InstagramTab /></TabPanel>
         <TabPanel value="magaza"><StoreTab /></TabPanel>
+        <TabPanel value="buyur"><BuyurTab /></TabPanel>
         <TabPanel value="botlar"><AiBotsTab /></TabPanel>
         <TabPanel value="seo"><SeoTab /></TabPanel>
       </TabPanels>
