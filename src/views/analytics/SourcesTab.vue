@@ -24,6 +24,10 @@ const utmMax = (rows: { visits: number }[]) => Math.max(...rows.map((r) => r.vis
 const contentRows = computed(() => props.data.utm.content ?? [])
 const contentMax = computed(() => Math.max(...contentRows.value.map((r) => r.visits), 1))
 
+/* Yapay zeka trafiği. Web ucu bu alanı göndermiyorsa (panel deploy'u web'in
+   önüne geçtiyse) sıfırlara düşer, kart yine çizilir. */
+const ai = computed(() => props.data.aiTraffic ?? { referred: 0, sources: [], likely: 0, directEntries: 0, likelyOfDirect: 0 })
+
 const conv = computed(() => props.data.webConversions ?? { magazaPlay: 0, magazaAppstore: 0, bulten: 0, withClickId: 0 })
 const convTotal = computed(() => conv.value.magazaPlay + conv.value.magazaAppstore + conv.value.bulten)
 
@@ -68,10 +72,35 @@ async function downloadCsv() {
       </ul>
     </article>
 
+    <article class="panel-card pad">
+      <div class="panel-title sm"><div><p>YAPAY ZEKA</p><h2>AI yüzeylerinden gelen</h2></div></div>
+      <!-- Toplam bir BAŞLIK sayısıdır, karşılaştırma değil: çubuğu yok.
+           Kendi kendinin %100'ü olan bir çubuk hiçbir şey söylemez ve
+           altındaki gerçek karşılaştırmayı yanlış okutur. -->
+      <div class="ai-toplam">
+        <span class="src-name">Ölçülen yönlendirme</span>
+        <strong>{{ fmt(ai.referred) }}</strong>
+        <span class="src-val">tüm girişlerin {{ pct(ai.referred, channelTotal) }}%'i</span>
+      </div>
+      <p v-if="!ai.referred" class="analytics-note">Henüz hiçbir yapay zeka yüzeyinden yönlendirme gelmedi. Bu bir ölçüm sonucudur, eksik ölçüm değil: ChatGPT, Perplexity, Gemini, Claude ve Copilot yönlendirmeleri tanınıyor ve sayılıyor.</p>
+      <ul v-else class="src-list tight ai-kaynak">
+        <li v-for="r in ai.sources" :key="r.source">
+          <div class="src-row"><span class="src-name mono">{{ r.source }}</span><span class="src-val">{{ fmt(r.visits) }} · {{ pct(r.visits, ai.referred) }}%</span></div>
+          <div class="mini-track"><div class="mini-fill clay" :style="{ width: `${pct(r.visits, ai.referred)}%` }" /></div>
+        </li>
+      </ul>
+
+      <div class="ai-sezgisel">
+        <p class="mini-cap">MUHTEMEL AI (SEZGİSEL)</p>
+        <div class="src-row"><span class="src-name">Referrer taşımayan derin iniş</span><span class="src-val">{{ fmt(ai.likely) }} · doğrudan girişlerin {{ ai.likelyOfDirect }}%'i</span></div>
+        <p class="analytics-note">Yapay zeka kaynaklı oturumların büyük kısmı referrer taşımaz (yerel uygulamalar, gizlilik ayarları) ve "doğrudan" kovasına düşer. Bu sayı o kovadaki yeni ziyaretçilerin ana sayfa dışına inişini gösterir. <strong>Kesin değildir</strong>: yer imi, elle yazılan adres ve QR trafiği de buraya karışır. Kanal tablosuna bilerek eklenmedi, mutlak sayı değil trend olarak okunur.</p>
+      </div>
+    </article>
+
     <div class="split-grid">
       <article class="panel-card pad">
         <div class="panel-title sm"><div><p>YÖNLENDİREN SİTELER</p><h2>Referrer</h2></div></div>
-        <ul class="src-list tight">
+        <ul class="src-list tight referrer">
           <li v-for="r in data.referrers" :key="r.source">
             <div class="src-row"><span class="src-name mono">{{ r.source }}</span><span class="src-val">{{ fmt(r.visits) }} · {{ pct(r.visits, refTotal) }}%</span></div>
             <div class="mini-track"><div class="mini-fill coral" :style="{ width: `${pct(r.visits, refTotal)}%` }" /></div>
