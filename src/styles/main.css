@@ -555,6 +555,7 @@ strong.num-cell { font-size: 13px; }
 
 /* ===== Web analitiği ===== */
 .mini-fill.amber { background: #ecb45a; } .mini-fill.blue { background: #7fb0bb; }
+.mini-fill.clay { background: #c9705f; }
 .metric-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .metric-foot small { margin: 0; }
 .delta { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900; font-variant-numeric: tabular-nums; }
@@ -1100,6 +1101,21 @@ strong.num-cell { font-size: 13px; }
    ya da yazılışı sabit özel ad ("iOS", "macOS", "afiet.co") taşıyor.
    capitalize ikisini de bozuyordu ("Blog:1-Bardak-Su-Kac-Kalori", "IOS"). */
 .src-list.buyur .src-name, .buyur-key { text-transform: none; }
+/* AI kaynak listesi host adı basar (chatgpt.com, gemini.google.com); capitalize
+   onları "Chatgpt.Com" yapar. Yol/kimlik taşıyan her yeni liste bu istisnayı
+   ister. */
+.src-list.ai-kaynak .src-name { text-transform: none; }
+/* Referrer listesi de host adı basıyor ("l.instagram.com" → "L.Instagram.Com").
+   Kusur eskiden beri vardı, AI yüzeyleri o listeye düşmeye başlayınca görünür
+   oldu (chatgpt.com, gemini.google.com). */
+.src-list.referrer .src-name { text-transform: none; }
+.ai-toplam { display: flex; align-items: baseline; gap: 9px; }
+.ai-toplam strong { font-size: 22px; font-weight: 800; color: #22312c; }
+/* "Muhtemel AI" bloğu ölçülen sayıdan GÖRSEL OLARAK ayrılır: sezgisel bir
+   değerin ölçülen değerle aynı görünmesi, panelin en kolay yalanı olurdu. */
+.ai-sezgisel { margin-top: 14px; padding-top: 13px; border-top: 1px dashed var(--line); }
+.ai-sezgisel .src-row { margin-top: 4px; }
+.ai-sezgisel .analytics-note { margin-top: 8px; }
 .email-cell small { display: block; margin-top: 3px; color: #8d9087; font-size: 9px; }
 /* QuestsView'daki .quest-glyph scoped; ilerleme listesi ayrı bileşende. */
 .quest-progress .quest-glyph { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px 11px 11px 3px; background: #dff0e7; font-size: 17px; line-height: 1; }

@@ -19,13 +19,32 @@ export const RANGES: { value: Range; label: string; days: number }[] = [
 export type SeriesPoint = { date: string; views: number; visitors: number }
 export type PageRow = { path: string; title: string; views: number; visitors: number; avgSeconds: number }
 export type BlogRow = { slug: string; title: string; views: number; visitors: number; avgReadSeconds: number; publishedAt: string | null }
-export type ChannelKey = 'direct' | 'search' | 'social' | 'referral' | 'campaign'
+export type ChannelKey = 'direct' | 'search' | 'ai' | 'social' | 'referral' | 'campaign'
 export type ChannelRow = { key: ChannelKey; label: string; visits: number }
 export type SourceRow = { source: string; visits: number }
 export type UtmRow = { value: string; visits: number }
 /** utm_content (kreatif) satırı: ziyaret + o kreatiften gelen ziyaretçilerin web dönüşümleri (son giriş). */
 export type ContentRow = { value: string; visits: number; magaza: number; bulten: number }
 export type BreakdownRow = { key: string; label: string; visits: number }
+
+/**
+ * Yapay zeka trafiği. İKİ SAYI AYRI DURUR ve TOPLANMAZ.
+ *
+ * `referred` ÖLÇÜLEN gerçektir: referrer'ı bir AI yüzeyi olan girişler.
+ * Kanallar listesindeki "Yapay zeka" satırıyla aynı sayıdır.
+ *
+ * `likely` bir SEZGİSELDİR: referrer taşımayan yeni ziyaretçinin ana sayfa
+ * dışına inişi. AI kaynaklı oturumların büyük kısmı referrer taşımadığı için
+ * var; ama yer imi, elle yazılan adres ve QR trafiği de buraya düşer. Mutlak
+ * ölçüm değil TREND göstergesidir ve ekranda öyle etiketlenir.
+ */
+export type AiTraffic = {
+  referred: number
+  sources: SourceRow[]
+  likely: number
+  directEntries: number
+  likelyOfDirect: number
+}
 
 export type AnalyticsData = {
   generatedAt: string
@@ -68,6 +87,7 @@ export type AnalyticsData = {
   utm: { source: UtmRow[]; medium: UtmRow[]; campaign: UtmRow[]; term: UtmRow[]; content: ContentRow[] }
   /** Web dönüşümleri: mağaza tıklaması (mağazaya göre), bülten kaydı; reklam tıklama kimliğiyle eşlenen pay. */
   webConversions: { magazaPlay: number; magazaAppstore: number; bulten: number; withClickId: number }
+  aiTraffic: AiTraffic
   devices: BreakdownRow[]
   browsers: BreakdownRow[]
   countries: BreakdownRow[]
