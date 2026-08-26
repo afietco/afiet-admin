@@ -19,13 +19,32 @@ export const RANGES: { value: Range; label: string; days: number }[] = [
 export type SeriesPoint = { date: string; views: number; visitors: number }
 export type PageRow = { path: string; title: string; views: number; visitors: number; avgSeconds: number }
 export type BlogRow = { slug: string; title: string; views: number; visitors: number; avgReadSeconds: number; publishedAt: string | null }
-export type ChannelKey = 'direct' | 'search' | 'social' | 'referral' | 'campaign'
+export type ChannelKey = 'direct' | 'search' | 'ai' | 'social' | 'referral' | 'campaign'
 export type ChannelRow = { key: ChannelKey; label: string; visits: number }
 export type SourceRow = { source: string; visits: number }
 export type UtmRow = { value: string; visits: number }
 /** utm_content (kreatif) satırı: ziyaret + o kreatiften gelen ziyaretçilerin web dönüşümleri (son giriş). */
 export type ContentRow = { value: string; visits: number; magaza: number; bulten: number }
 export type BreakdownRow = { key: string; label: string; visits: number }
+
+/**
+ * Yapay zeka trafiği. İKİ SAYI AYRI DURUR ve TOPLANMAZ.
+ *
+ * `referred` ÖLÇÜLEN gerçektir: referrer'ı bir AI yüzeyi olan girişler.
+ * Kanallar listesindeki "Yapay zeka" satırıyla aynı sayıdır.
+ *
+ * `likely` bir SEZGİSELDİR: referrer taşımayan yeni ziyaretçinin ana sayfa
+ * dışına inişi. AI kaynaklı oturumların büyük kısmı referrer taşımadığı için
+ * var; ama yer imi, elle yazılan adres ve QR trafiği de buraya düşer. Mutlak
+ * ölçüm değil TREND göstergesidir ve ekranda öyle etiketlenir.
+ */
+export type AiTraffic = {
+  referred: number
+  sources: SourceRow[]
+  likely: number
+  directEntries: number
+  likelyOfDirect: number
+}
 
 export type AnalyticsData = {
   generatedAt: string
@@ -68,6 +87,7 @@ export type AnalyticsData = {
   utm: { source: UtmRow[]; medium: UtmRow[]; campaign: UtmRow[]; term: UtmRow[]; content: ContentRow[] }
   /** Web dönüşümleri: mağaza tıklaması (mağazaya göre), bülten kaydı; reklam tıklama kimliğiyle eşlenen pay. */
   webConversions: { magazaPlay: number; magazaAppstore: number; bulten: number; withClickId: number }
+  aiTraffic: AiTraffic
   devices: BreakdownRow[]
   browsers: BreakdownRow[]
   countries: BreakdownRow[]
@@ -145,6 +165,34 @@ export type GscData = {
   pages: GscRow[]
 }
 
+// ── Discover (afiet-web gsc_discover_daily/gsc_discover_rows aynası) ─────────
+
+/**
+ * Discover satırında `position` YOKTUR ve olmamalıdır: Google bu yüzey için
+ * ortalama pozisyon döndürmez. Arama satırından (`GscRow`) türetip alanı
+ * boş geçmek, panelde doldurulacak bir sütun varmış izlenimi verirdi.
+ */
+export type GscDiscoverRow = { key: string; clicks: number; impressions: number; ctr: number }
+export type GscDiscoverData = {
+  generatedAt: string
+  range: Range
+  /** false = servis hesabı yapılandırılmamış. */
+  connected: boolean
+  lastSyncAt: string | null
+  /**
+   * Discover bugüne kadar sıfırdan büyük bir ölçüm döndürdü mü.
+   * false iken ekran SIFIR YAZMAZ, "ölçüm yok" yazar: Search Console
+   * arayüzü eşik altında raporu hiç göstermezken API sıfır dolu satırlar
+   * döndürüyor ve o satırları sıfır diye çizmek grafiği yalanlar.
+   */
+  measured: boolean
+  totals: { clicks: number; impressions: number; ctrPct: number }
+  /** `measured` false iken uç BOŞ döndürür; sıfır dolgulu seri çizilmez. */
+  series: { date: string; clicks: number; impressions: number }[]
+  pages: GscDiscoverRow[]
+  countries: GscDiscoverRow[]
+}
+
 /**
  * AI tarayıcı erişim kaydı (afiet-web `ai_bot_hits`). Alan adları uçla BİREBİR
  * aynadır (`server/api/admin/ai-bots.get.ts`), Türkçe olmaları oradan gelir.
@@ -220,6 +268,7 @@ export const analyticsApi = {
     }),
   buyur: (range: Range) => webRequest<BuyurData>(`/api/admin/analytics/buyur?range=${range}`),
   search: (range: Range) => webRequest<GscData>(`/api/admin/analytics/search?range=${range}`),
+  discover: (range: Range) => webRequest<GscDiscoverData>(`/api/admin/analytics/discover?range=${range}`),
   /** Google Ads offline conversion CSV'si (metin); panel dosya olarak indirtir. */
   adsConversionsCsv: (range: Range) => webRequestText(`/api/admin/analytics/ads-conversions?range=${range}`),
 }
