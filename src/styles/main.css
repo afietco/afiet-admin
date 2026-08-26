@@ -555,6 +555,7 @@ strong.num-cell { font-size: 13px; }
 
 /* ===== Web analitiği ===== */
 .mini-fill.amber { background: #ecb45a; } .mini-fill.blue { background: #7fb0bb; }
+.mini-fill.clay { background: #c9705f; }
 .metric-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .metric-foot small { margin: 0; }
 .delta { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 900; font-variant-numeric: tabular-nums; }
@@ -1100,9 +1101,42 @@ strong.num-cell { font-size: 13px; }
    ya da yazılışı sabit özel ad ("iOS", "macOS", "afiet.co") taşıyor.
    capitalize ikisini de bozuyordu ("Blog:1-Bardak-Su-Kac-Kalori", "IOS"). */
 .src-list.buyur .src-name, .buyur-key { text-transform: none; }
+/* AI kaynak listesi host adı basar (chatgpt.com, gemini.google.com); capitalize
+   onları "Chatgpt.Com" yapar. Yol/kimlik taşıyan her yeni liste bu istisnayı
+   ister. */
+.src-list.ai-kaynak .src-name { text-transform: none; }
+/* Referrer listesi de host adı basıyor ("l.instagram.com" → "L.Instagram.Com").
+   Kusur eskiden beri vardı, AI yüzeyleri o listeye düşmeye başlayınca görünür
+   oldu (chatgpt.com, gemini.google.com). */
+.src-list.referrer .src-name { text-transform: none; }
+.ai-toplam { display: flex; align-items: baseline; gap: 9px; }
+.ai-toplam strong { font-size: 22px; font-weight: 800; color: #22312c; }
+/* "Muhtemel AI" bloğu ölçülen sayıdan GÖRSEL OLARAK ayrılır: sezgisel bir
+   değerin ölçülen değerle aynı görünmesi, panelin en kolay yalanı olurdu. */
+.ai-sezgisel { margin-top: 14px; padding-top: 13px; border-top: 1px dashed var(--line); }
+.ai-sezgisel .src-row { margin-top: 4px; }
+.ai-sezgisel .analytics-note { margin-top: 8px; }
 .email-cell small { display: block; margin-top: 3px; color: #8d9087; font-size: 9px; }
 /* QuestsView'daki .quest-glyph scoped; ilerleme listesi ayrı bileşende. */
 .quest-progress .quest-glyph { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px 11px 11px 3px; background: #dff0e7; font-size: 17px; line-height: 1; }
 /* Ritim kartı yanındaki kartla aynı boyu tutmasın; içerik kadar yer kaplasın. */
 .split-grid > .panel-card { align-self: start; }
 .measure-pill { white-space: nowrap; }
+
+/* ── Site dışı yüzey kaydı ──────────────────────────────────────────────────
+   Durum renkleri hükmü taşır: boş ve yok kırmızı ailesindedir çünkü ikisi de
+   bir işin yapılmadığını söyler, "boş" olan daha da acildir (sameAs oraya
+   işaret ediyor). Eskimiş damga uyarı değil dürtmedir, o yüzden sarı. */
+.surface-card .p-datatable { margin-top: 12px; }
+.surface-name { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.surface-name strong { color: var(--ink); font-size: 13px; font-weight: 800; }
+.surface-url { display: inline-block; margin-top: 4px; font-size: 10.5px; }
+.surface-warn { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; padding: 9px 11px; border: 1px solid #f0d3cd; border-radius: 10px; background: #fdf1ef; color: #8c3524; font-size: 11px; line-height: 1.5; }
+.surface-warn i { margin-top: 1px; font-size: 11px; }
+.surface-dogrulandi { border-color: #cbe8d9; color: #1c6a4e; background: #eaf6f0; }
+.surface-acik { border-color: #e8e2d5; color: #62665c; background: #faf7f0; }
+.surface-bos { border-color: #f0d3cd; color: #8c3524; background: #fdf1ef; }
+.surface-yok { border-color: #e6dcd8; color: #8d7a74; background: #f7f1ef; }
+.surface-stale { display: block; width: fit-content; margin-top: 5px; }
+.surface-notes { margin: 10px 0 0; padding: 9px 11px; border-radius: 10px; background: #f7f4ec; }
+.surface-form { display: grid; gap: 10px; margin-top: 14px; }

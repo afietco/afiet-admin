@@ -4,6 +4,7 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import { useConfirm } from 'primevue/useconfirm'
@@ -11,7 +12,17 @@ import { useToast } from 'primevue/usetoast'
 import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import { fmt, shortDate } from '../analytics/shared'
-import { indexStateLabel, seoWatchApi, type SeoAction, type SeoReportDetail, type SeoWatchOverview } from '../../services/seoWatch'
+import {
+  indexStateLabel,
+  seoWatchApi,
+  surfaceKindLabel,
+  surfaceStateLabel,
+  type SeoAction,
+  type SeoReportDetail,
+  type SeoSurface,
+  type SeoSurfaceState,
+  type SeoWatchOverview,
+} from '../../services/seoWatch'
 
 /**
  * SEO nöbetçisinin haftalık raporu ve yürüyen yapılacaklar listesi.
@@ -158,6 +169,65 @@ function ageLabel(action: SeoAction): string {
   return action.weeks > 1 ? `${action.weeks} haftadır açık` : ''
 }
 
+// ── site dışı yüzeyler ──────────────────────────────────────────────────────
+
+/**
+ * Sunucu satırları zaten "en kötü önce" sıralıyor (yok, boş, açık,
+ * doğrulandı) ve burada YENİDEN SIRALANMIYOR: mailin okuduğu sıra ile ekranın
+ * okuduğu sıra aynı olmalı, yoksa iki yerde iki farklı "en acil iş" çıkar.
+ */
+const surfaces = computed(() => overview.value?.surfaces ?? [])
+const brokenSurfaces = computed(() => surfaces.value.filter((s) => s.state === 'yok' || s.state === 'bos'))
+
+const verifying = ref<SeoSurface | null>(null)
+const verifyState = ref<SeoSurfaceState>('dogrulandi')
+const verifyEvidence = ref('')
+const saving = ref(false)
+
+function openVerify(surface: SeoSurface) {
+  verifying.value = surface
+  verifyState.value = surface.state === 'yok' ? 'acik' : surface.state
+  verifyEvidence.value = ''
+}
+
+const stateOptions = [
+  { value: 'dogrulandi', label: 'doğrulandı - baktım, iyi durumda' },
+  { value: 'acik', label: 'açık - var ama tam değil' },
+  { value: 'bos', label: 'boş - var ama içi boş' },
+  { value: 'yok', label: 'yok - henüz açılmadı' },
+]
+
+/** Doğrulama kanıt ister; sunucu da zorunlu tutuyor, ekran sebebini söylüyor. */
+const canSaveVerify = computed(() => verifyState.value !== 'dogrulandi' || verifyEvidence.value.trim().length > 0)
+
+async function saveVerify() {
+  const surface = verifying.value
+  if (!surface || saving.value || !canSaveVerify.value) return
+  saving.value = true
+  try {
+    const updated = await seoWatchApi.verifySurface(surface.id, {
+      state: verifyState.value,
+      evidence: verifyEvidence.value.trim(),
+    })
+    // Sunucunun döndürdüğü satır aynen yerine konur: "eskimiş mi" ve eşik
+    // sunucuda hesaplanıyor, burada yeniden türetmek iki cevap üretirdi.
+    if (overview.value) {
+      overview.value.surfaces = overview.value.surfaces.map((s) => (s.id === updated.id ? updated : s))
+    }
+    verifying.value = null
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Kaydedilemedi', detail: err instanceof Error ? err.message : '', life: 4000 })
+  } finally {
+    saving.value = false
+  }
+}
+
+/** "40 gün önce" / "hiç": ikisi farklı cümledir, biri diğerinin yerine geçmez. */
+function verifiedLabel(surface: SeoSurface): string {
+  if (!surface.verifiedAt) return 'hiç doğrulanmadı'
+  return shortDate(surface.verifiedAt)
+}
+
 // ── raporun ölçümleri ───────────────────────────────────────────────────────
 
 const cards = computed(() => {
@@ -293,6 +363,93 @@ const queryRows = computed(() => report.value?.snapshot.search.topQueries ?? [])
           </ul>
         </div>
       </section>
+
+      <!-- Site dışı yüzeyler. Yapılacakların hemen altında, raporun ÜSTÜNDE:
+           rapor haftalık okunur, bu kayıt ise haftadan bağımsız bir durumdur
+           ve içindeki en acil madde (boş bir profil) her gün geçerlidir. -->
+      <section class="panel-card pad surface-card">
+        <div class="panel-title sm todo-head">
+          <div>
+            <p>SİTE DIŞI YÜZEY</p>
+            <h2>afiet'i bizim dışımızda anlatan yerler</h2>
+          </div>
+          <span v-if="surfaces.length" class="todo-count">{{ surfaces.filter((s) => s.state === 'dogrulandi').length }}/{{ surfaces.length }} doğrulandı</span>
+        </div>
+        <p class="todo-note">
+          Hafta seçiminden bağımsız. Kontrol edilebilenleri haftalık tur kendi bakar; Brave, LinkedIn ve basın gibi
+          makineyle okunamayan yüzeyler damgaları eskiyince yapılacaklar listesine düşer ve ancak buradan doğrulanır.
+        </p>
+
+        <p v-if="brokenSurfaces.length" class="surface-warn">
+          <i class="pi pi-exclamation-triangle" />
+          Boş bir profil aktif zarardır: sameAs motorlara "bu varlık burada" deyip boş oda gösterir.
+        </p>
+
+        <DataTable v-if="surfaces.length" :value="surfaces" striped-rows>
+          <Column header="Yüzey" style="min-width: 11rem">
+            <template #body="{ data: row }">
+              <div class="surface-name">
+                <strong>{{ row.name }}</strong>
+                <span class="chip">{{ surfaceKindLabel(row.kind) }}</span>
+                <span v-if="row.automatic" class="chip chip-manual">otomatik</span>
+              </div>
+              <a v-if="row.url" :href="row.url" target="_blank" rel="noopener" class="path mono surface-url">{{ row.url }}</a>
+              <p v-if="row.evidence" class="todo-why">{{ row.evidence }}</p>
+            </template>
+          </Column>
+          <Column header="Durum" style="width: 7rem">
+            <template #body="{ data: row }">
+              <span class="chip" :class="`surface-${row.state}`">{{ surfaceStateLabel(row.state) }}</span>
+            </template>
+          </Column>
+          <Column header="Son doğrulama" style="width: 11rem">
+            <template #body="{ data: row }">
+              <span class="num-cell">{{ verifiedLabel(row) }}</span>
+              <span v-if="row.needsEye" class="todo-age surface-stale">{{ row.staleAfterDays }} günlük eşik aşıldı</span>
+            </template>
+          </Column>
+          <!-- Düğme YALNIZ makineyle okunamayan yüzeylerde. Otomatik olanın
+               durumunu haftalık tur her hafta yeniden yazıyor; oraya insan
+               damgası koymak bir hafta yaşayan, sonra sessizce silinen bir
+               kayıt üretirdi. Otomatik bir yüzey yanlış okunuyorsa sorun
+               damgada değil kontrolün kendisindedir. -->
+          <Column header="" style="width: 6rem">
+            <template #body="{ data: row }">
+              <Button v-if="!row.automatic" label="Baktım" icon="pi pi-eye" text size="small" @click="openVerify(row)" />
+            </template>
+          </Column>
+        </DataTable>
+        <!-- Boş kayıt "her şey yolunda" DEĞİLDİR; mail de aynı cümleyi kurar. -->
+        <EmptyState
+          v-else
+          icon="pi pi-globe"
+          title="Kayıt henüz oluşmadı"
+          description="Yüzey kaydı ilk haftalık turda dolar. 'Rapor üret' turu şimdi koşturur."
+        />
+      </section>
+
+      <Dialog
+        :visible="verifying !== null"
+        modal
+        :header="verifying ? verifying.name : ''"
+        :style="{ width: '30rem' }"
+        @update:visible="verifying = null"
+      >
+        <p class="todo-note" style="margin-top: 0">
+          Ne gördüğünü yaz. Bu damga yüzeyi
+          <strong>{{ verifying?.staleAfterDays }} gün</strong> boyunca susturuyor, o yüzden sonradan
+          okunabilir olması gerekiyor.
+        </p>
+        <p v-if="verifying?.notes" class="todo-why surface-notes">{{ verifying.notes }}</p>
+        <div class="surface-form">
+          <Select v-model="verifyState" :options="stateOptions" option-label="label" option-value="value" aria-label="Durum" />
+          <InputText v-model="verifyEvidence" placeholder="Kanıt: ne gördün? (ör. Brave'de site:afiet.co 12 sonuç)" aria-label="Kanıt" />
+        </div>
+        <template #footer>
+          <Button label="Vazgeç" text @click="verifying = null" />
+          <Button label="Kaydet" icon="pi pi-check" :disabled="!canSaveVerify" :loading="saving" @click="saveVerify" />
+        </template>
+      </Dialog>
 
       <!-- Haftanın raporu -->
       <template v-if="report">

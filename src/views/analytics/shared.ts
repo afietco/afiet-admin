@@ -58,8 +58,15 @@ export function shortDate(value: string, withYear = false): string {
   return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) }).format(d)
 }
 
+/*
+ * Kanal renkleri. `ai` altıncı slot olarak 26 Ağu 2026'da eklendi ve tonu
+ * (`clay`) doğrulayıcıyla seçildi: mevcut beşlinin hiçbir çiftini
+ * kötüleştirmiyor ve iki soğuk komşusunun (green, blue) arasında sıcak
+ * durduğu için satır satır okunuşu net. Renk tek başına kimlik taşımıyor,
+ * her satırda kanal adı ve sayısı METİN olarak da yazılı.
+ */
 export const CHANNEL_TONE: Record<string, string> = {
-  search: 'green', direct: 'blue', social: 'violet', referral: 'coral', campaign: 'amber',
+  search: 'green', ai: 'clay', direct: 'blue', social: 'violet', referral: 'coral', campaign: 'amber',
 }
 
 /**
