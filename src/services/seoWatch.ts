@@ -114,10 +114,52 @@ export type SeoSnapshot = {
 export type SeoReportDetail = SeoReportSummary & { snapshot: SeoSnapshot }
 
 /** Sekmenin tek çağrıda ihtiyaç duyduğu her şey. */
+/**
+ * Site dışı bir yüzeyin durumu.
+ *
+ * "bos" en kötüsüdür, "yok"tan da kötü: sameAs listesi motorlara "bu varlık
+ * burada" der ve boş oda gösterir. Ekranda da o sırayla okunur.
+ */
+export type SeoSurfaceState = 'yok' | 'acik' | 'bos' | 'dogrulandi'
+
+export type SeoSurface = {
+  id: number
+  /** Kodun yüzeye verdiği sabit ad; görünen ad ve adres değişse de bu durur. */
+  slug: string
+  name: string
+  /** indeks | kimlik | sosyal | dizin | basin */
+  kind: string
+  url: string
+  state: SeoSurfaceState
+  /**
+   * Haftalık tur bu yüzeyi makineyle kontrol edebiliyor mu. Edemiyorsa
+   * (Brave, LinkedIn, basın) yüzey ancak buradan elle doğrulanır; o düğme
+   * olmadan yaşlanma kuralı aynı maddeyi sonsuza kadar açardı.
+   */
+  automatic: boolean
+  /** Durumun dayanağı, kısa metin. Rapor da aynen bunu basar. */
+  evidence: string
+  notes: string
+  checkedAt: string | null
+  verifiedAt: string | null
+  /** Damga eskimiş mi (düz gerçek). SUNUCU hesaplar. */
+  stale: boolean
+  /**
+   * Eskime EYLEM gerektiriyor mu. "yok" ve "boş" yüzeyler tanımı gereği hep
+   * eskimiştir ama işleri "aç" / "doldur"dur; onları bir de "git bak" diye
+   * dürtmek aynı işi ekranda ikinci kez, daha belirsiz bir adla gösterirdi.
+   * Rozet buna bakar, haftalık mail de aynı alana.
+   */
+  needsEye: boolean
+  /** Eskimeyi üreten eşik (gün). Ekran iddia etmek yerine gerekçesini söyler. */
+  staleAfterDays: number
+}
+
 export type SeoWatchOverview = {
   reports: SeoReportSummary[]
   latest: SeoReportDetail | null
   actions: SeoAction[]
+  surfaces: SeoSurface[]
 }
 
 /**
@@ -137,6 +179,30 @@ const INDEX_STATE_LABELS: Record<string, string> = {
 }
 
 export const indexStateLabel = (state: string) => INDEX_STATE_LABELS[state] ?? state
+
+/**
+ * Yüzey durumlarının Türkçe karşılığı. Sözlükte olmayan bir durum ham adıyla
+ * gösterilir: kolonda CHECK yok (bkz. migration 000070), yani ileride
+ * eklenen bir durum burada sessizce kaybolmamalı.
+ */
+const SURFACE_STATE_LABELS: Record<string, string> = {
+  yok: 'yok',
+  acik: 'açık',
+  bos: 'boş',
+  dogrulandi: 'doğrulandı',
+}
+
+export const surfaceStateLabel = (state: string) => SURFACE_STATE_LABELS[state] ?? state
+
+const SURFACE_KIND_LABELS: Record<string, string> = {
+  indeks: 'indeks',
+  kimlik: 'kimlik',
+  sosyal: 'sosyal',
+  dizin: 'dizin',
+  basin: 'basın',
+}
+
+export const surfaceKindLabel = (kind: string) => SURFACE_KIND_LABELS[kind] ?? kind
 
 // ── API ────────────────────────────────────────────────────────────────────
 
@@ -170,4 +236,13 @@ export const seoWatchApi = {
     request<SeoAction>(`/v1/admin/seo/yapilacaklar/${id}`, { method: 'PATCH', body: JSON.stringify({ tamamlandi: done }) }),
   /** Yalnız elle eklenen madde silinir; ajan maddesi tamamlanarak kapatılır. */
   deleteAction: (id: number) => request<void>(`/v1/admin/seo/yapilacaklar/${id}`, { method: 'DELETE' }),
+  /**
+   * Bir yüzeyin durumunu insan gözüyle kaydeder.
+   *
+   * Doğrulama KANIT ister (sunucu da zorunlu tutuyor): bu damga yüzeyi
+   * türüne göre 14-180 gün susturuyor ve "baktım, iyiydi" cümlesi sonradan
+   * kimsenin denetleyemeyeceği bir kayıttır.
+   */
+  verifySurface: (id: number, input: { state: SeoSurfaceState; evidence: string }) =>
+    request<SeoSurface>(`/v1/admin/seo/yuzeyler/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
 }

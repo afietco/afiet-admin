@@ -1122,3 +1122,21 @@ strong.num-cell { font-size: 13px; }
 /* Ritim kartı yanındaki kartla aynı boyu tutmasın; içerik kadar yer kaplasın. */
 .split-grid > .panel-card { align-self: start; }
 .measure-pill { white-space: nowrap; }
+
+/* ── Site dışı yüzey kaydı ──────────────────────────────────────────────────
+   Durum renkleri hükmü taşır: boş ve yok kırmızı ailesindedir çünkü ikisi de
+   bir işin yapılmadığını söyler, "boş" olan daha da acildir (sameAs oraya
+   işaret ediyor). Eskimiş damga uyarı değil dürtmedir, o yüzden sarı. */
+.surface-card .p-datatable { margin-top: 12px; }
+.surface-name { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.surface-name strong { color: var(--ink); font-size: 13px; font-weight: 800; }
+.surface-url { display: inline-block; margin-top: 4px; font-size: 10.5px; }
+.surface-warn { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; padding: 9px 11px; border: 1px solid #f0d3cd; border-radius: 10px; background: #fdf1ef; color: #8c3524; font-size: 11px; line-height: 1.5; }
+.surface-warn i { margin-top: 1px; font-size: 11px; }
+.surface-dogrulandi { border-color: #cbe8d9; color: #1c6a4e; background: #eaf6f0; }
+.surface-acik { border-color: #e8e2d5; color: #62665c; background: #faf7f0; }
+.surface-bos { border-color: #f0d3cd; color: #8c3524; background: #fdf1ef; }
+.surface-yok { border-color: #e6dcd8; color: #8d7a74; background: #f7f1ef; }
+.surface-stale { display: block; width: fit-content; margin-top: 5px; }
+.surface-notes { margin: 10px 0 0; padding: 9px 11px; border-radius: 10px; background: #f7f4ec; }
+.surface-form { display: grid; gap: 10px; margin-top: 14px; }
