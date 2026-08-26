@@ -1140,3 +1140,4 @@ strong.num-cell { font-size: 13px; }
 .surface-stale { display: block; width: fit-content; margin-top: 5px; }
 .surface-notes { margin: 10px 0 0; padding: 9px 11px; border-radius: 10px; background: #f7f4ec; }
 .surface-form { display: grid; gap: 10px; margin-top: 14px; }
+.surface-head-right { display: flex; gap: 12px; align-items: center; }
