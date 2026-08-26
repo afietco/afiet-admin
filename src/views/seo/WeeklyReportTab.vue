@@ -184,6 +184,32 @@ const verifyState = ref<SeoSurfaceState>('dogrulandi')
 const verifyEvidence = ref('')
 const saving = ref(false)
 
+const roundRunning = ref(false)
+
+/**
+ * Yüzey turunu elle koşturur. Rapor üretmez, yalnız kaydı tazeler.
+ *
+ * Sunucu turu ayrık koşturuyor (bir düzine üçüncü taraf gidiş dönüşü bir
+ * isteğe sığmaz), o yüzden burada "bitti" DENMEZ: bittiğinde kayıt değişir,
+ * kullanıcı yenileyerek görür.
+ */
+async function runRound() {
+  roundRunning.value = true
+  try {
+    await seoWatchApi.runSurfaces()
+    toast.add({
+      severity: 'success',
+      summary: 'Yüzey turu başladı',
+      detail: 'Üçüncü taraf yoklamaları ve API okumaları bir dakika kadar sürer. Bittiğinde tabloyu yenileyerek gör.',
+      life: 6000,
+    })
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Başlatılamadı', detail: err instanceof Error ? err.message : '', life: 4000 })
+  } finally {
+    roundRunning.value = false
+  }
+}
+
 function openVerify(surface: SeoSurface) {
   verifying.value = surface
   verifyState.value = surface.state === 'yok' ? 'acik' : surface.state
@@ -373,7 +399,10 @@ const queryRows = computed(() => report.value?.snapshot.search.topQueries ?? [])
             <p>SİTE DIŞI YÜZEY</p>
             <h2>afiet'i bizim dışımızda anlatan yerler</h2>
           </div>
-          <span v-if="surfaces.length" class="todo-count">{{ surfaces.filter((s) => s.state === 'dogrulandi').length }}/{{ surfaces.length }} doğrulandı</span>
+          <div class="surface-head-right">
+            <span v-if="surfaces.length" class="todo-count">{{ surfaces.filter((s) => s.state === 'dogrulandi').length }}/{{ surfaces.length }} doğrulandı</span>
+            <Button label="Turu koştur" icon="pi pi-refresh" outlined size="small" :loading="roundRunning" @click="runRound" />
+          </div>
         </div>
         <p class="todo-note">
           Hafta seçiminden bağımsız. Kontrol edilebilenleri haftalık tur kendi bakar; Brave, LinkedIn ve basın gibi

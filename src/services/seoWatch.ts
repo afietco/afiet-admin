@@ -230,6 +230,14 @@ export const seoWatchApi = {
   report: (id: number) => request<SeoReportDetail>(`/v1/admin/seo/raporlar/${id}`),
   /** Haftayı beklemeden rapor üretir. Ayrık koşar; sonucu mail ve bu ekran söyler. */
   run: () => request<{ status: string }>('/v1/admin/seo/rapor/tetikle', { method: 'POST' }),
+  /**
+   * Yalnız site dışı yüzey turunu koşturur: kaydı tazeler, RAPOR ÜRETMEZ.
+   *
+   * Ayrı bir uç çünkü haftalık koşu, haftanın raporu zaten varsa erken
+   * dönüyor ve yüzey turu onun arkasında kalıyor. O olmasa kaydı tazelemenin
+   * tek yolu pazartesiyi beklemek olurdu.
+   */
+  runSurfaces: () => request<{ status: string }>('/v1/admin/seo/yuzey/tetikle', { method: 'POST' }),
   addAction: (input: { title: string; why: string; where: string }) =>
     request<SeoAction>('/v1/admin/seo/yapilacaklar', { method: 'POST', body: JSON.stringify(input) }),
   setActionDone: (id: number, done: boolean) =>
