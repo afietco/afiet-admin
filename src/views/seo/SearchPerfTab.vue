@@ -6,6 +6,7 @@ import SelectButton from 'primevue/selectbutton'
 import LineChart from '../../components/LineChart.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import AdminPlaceholder from '../../components/AdminPlaceholder.vue'
+import DiscoverPanel from './DiscoverPanel.vue'
 import { analyticsApi, RANGES, type GscData, type Range } from '../../services/analytics'
 import { SERIES_COLORS, fmt, shortDate } from '../analytics/shared'
 
@@ -118,6 +119,12 @@ const impressionsSeries = computed(() => [{ label: 'Gösterim', color: SERIES_CO
           </DataTable>
         </section>
       </div>
+
+      <!-- Discover aynı mülkten gelir ama arama DEĞİLDİR: aynı sekmede, kendi
+           başlığı ve kendi metrik kümesiyle durur. Ayrı sekme açılmadı; ekran
+           24 Ağu 2026'da bilinçle iki sekmeye indirilmişti. Aralık seçici
+           yukarıdakiyle ortaktır, remount en ucuz tazeleme yolu (SeoTab deseni). -->
+      <DiscoverPanel :key="`discover-${range}`" :range="range" />
     </template>
 
     <div v-else-if="loading" class="seo-loading"><i class="pi pi-spin pi-spinner" /> Arama performansı yükleniyor…</div>

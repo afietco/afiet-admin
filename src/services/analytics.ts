@@ -165,6 +165,34 @@ export type GscData = {
   pages: GscRow[]
 }
 
+// ── Discover (afiet-web gsc_discover_daily/gsc_discover_rows aynası) ─────────
+
+/**
+ * Discover satırında `position` YOKTUR ve olmamalıdır: Google bu yüzey için
+ * ortalama pozisyon döndürmez. Arama satırından (`GscRow`) türetip alanı
+ * boş geçmek, panelde doldurulacak bir sütun varmış izlenimi verirdi.
+ */
+export type GscDiscoverRow = { key: string; clicks: number; impressions: number; ctr: number }
+export type GscDiscoverData = {
+  generatedAt: string
+  range: Range
+  /** false = servis hesabı yapılandırılmamış. */
+  connected: boolean
+  lastSyncAt: string | null
+  /**
+   * Discover bugüne kadar sıfırdan büyük bir ölçüm döndürdü mü.
+   * false iken ekran SIFIR YAZMAZ, "ölçüm yok" yazar: Search Console
+   * arayüzü eşik altında raporu hiç göstermezken API sıfır dolu satırlar
+   * döndürüyor ve o satırları sıfır diye çizmek grafiği yalanlar.
+   */
+  measured: boolean
+  totals: { clicks: number; impressions: number; ctrPct: number }
+  /** `measured` false iken uç BOŞ döndürür; sıfır dolgulu seri çizilmez. */
+  series: { date: string; clicks: number; impressions: number }[]
+  pages: GscDiscoverRow[]
+  countries: GscDiscoverRow[]
+}
+
 /**
  * AI tarayıcı erişim kaydı (afiet-web `ai_bot_hits`). Alan adları uçla BİREBİR
  * aynadır (`server/api/admin/ai-bots.get.ts`), Türkçe olmaları oradan gelir.
@@ -240,6 +268,7 @@ export const analyticsApi = {
     }),
   buyur: (range: Range) => webRequest<BuyurData>(`/api/admin/analytics/buyur?range=${range}`),
   search: (range: Range) => webRequest<GscData>(`/api/admin/analytics/search?range=${range}`),
+  discover: (range: Range) => webRequest<GscDiscoverData>(`/api/admin/analytics/discover?range=${range}`),
   /** Google Ads offline conversion CSV'si (metin); panel dosya olarak indirtir. */
   adsConversionsCsv: (range: Range) => webRequestText(`/api/admin/analytics/ads-conversions?range=${range}`),
 }
