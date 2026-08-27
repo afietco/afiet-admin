@@ -207,13 +207,21 @@ async function keepAlive() {
   }
 }
 
+/**
+ * Stack Auth'a giden her isteğin ortak başlıkları. `Content-Type` BİLEREK
+ * yok: Stack, bu başlığı gören isteğin gövdesini ayrıştırmaya kalkıyor ve
+ * gövdesiz çağrıyı 400 `BODY_PARSING_ERROR` ile reddediyor. Gövde yollayan
+ * çağrı başlığı kendisi ekler.
+ */
 function stackHeaders(): HeadersInit {
   return {
-    'Content-Type': 'application/json',
     'X-Stack-Access-Type': 'client',
     'X-Stack-Project-Id': config.stackProjectId,
   }
 }
+
+/** Refresh token'ın kendisi ölmüş: oturumu gerçekten bitiren tek Stack kodu. */
+const REFRESH_TOKEN_DEAD = 'REFRESH_TOKEN_NOT_FOUND_OR_EXPIRED'
 
 async function requestRefresh(): Promise<string> {
   const refreshToken = readRefreshToken()
@@ -221,16 +229,30 @@ async function requestRefresh(): Promise<string> {
 
   let response: Response
   try {
+    // Gövde boş ama VAR olmalı: Stack yenileme ucu gövdeyi JSON olarak
+    // ayrıştırır, boş gövdeyi 400 ile geri çevirir.
     response = await fetch(`${config.stackBaseUrl}/api/v1/auth/sessions/current/refresh`, {
       method: 'POST',
-      headers: { ...stackHeaders(), 'X-Stack-Refresh-Token': refreshToken },
+      headers: {
+        ...stackHeaders(),
+        'Content-Type': 'application/json',
+        'X-Stack-Refresh-Token': refreshToken,
+      },
+      body: '{}',
     })
   } catch {
     throw new NetworkTrouble('Sunucuya ulaşılamadı.')
   }
   // 5xx sağlayıcı arızasıdır, oturumun bittiği anlamına gelmez.
   if (response.status >= 500) throw new NetworkTrouble('Sunucu yanıt vermiyor.')
-  if (!response.ok) throw new SessionLost(await readMessage(response))
+  if (!response.ok) {
+    const error = await readErrorBody(response)
+    // Oturumu YALNIZ Stack "bu token artık yok" derse bitiriyoruz. İstek
+    // biçimi, kota, geçici sağlayıcı hatası: hepsi aynı 4xx'i kullanabilir
+    // ve hiçbiri kullanıcıyı giriş ekranına atmayı hak etmez.
+    if (error.code === REFRESH_TOKEN_DEAD) throw new SessionLost(stackErrorMessage(error))
+    throw new NetworkTrouble(stackErrorMessage(error))
+  }
 
   const body = (await response.json()) as { access_token?: string; refresh_token?: string }
   if (!body.access_token) throw new SessionLost('Oturum yenilenemedi.')
@@ -287,14 +309,29 @@ export function signOut() {
   }).catch(() => {})
 }
 
-async function readMessage(response: Response) {
+type ErrorBody = { code?: string; message?: string }
+
+/** Hata gövdesini bir kez okur: gövde akışı ikinci kez okunamaz. */
+async function readErrorBody(response: Response): Promise<ErrorBody> {
   try {
     const body = await response.json()
-    if (body?.code === 'EMAIL_PASSWORD_MISMATCH') return 'E-posta veya şifre hatalı.'
-    return body?.error?.message || body?.error || 'İşlem tamamlanamadı.'
+    const message = typeof body?.error === 'string' ? body.error : body?.error?.message
+    return {
+      code: typeof body?.code === 'string' ? body.code : undefined,
+      message: typeof message === 'string' ? message : undefined,
+    }
   } catch {
-    return 'İşlem tamamlanamadı.'
+    return {}
   }
+}
+
+function stackErrorMessage(error: ErrorBody): string {
+  if (error.code === 'EMAIL_PASSWORD_MISMATCH') return 'E-posta veya şifre hatalı.'
+  return error.message || 'İşlem tamamlanamadı.'
+}
+
+async function readMessage(response: Response) {
+  return stackErrorMessage(await readErrorBody(response))
 }
 
 /* ------------------------------------------------------------------ kimlikli istek */
@@ -541,7 +578,7 @@ export async function signIn(email: string, password: string) {
 
   const response = await fetch(`${config.stackBaseUrl}/api/v1/auth/password/sign-in`, {
     method: 'POST',
-    headers: stackHeaders(),
+    headers: { ...stackHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
   })
   if (!response.ok) throw new Error(await readMessage(response))
