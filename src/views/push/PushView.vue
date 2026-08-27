@@ -34,7 +34,7 @@ function goCompose() {
     <PageHeader
       eyebrow="İLETİŞİM"
       title="Bildirimler"
-      description="Elle duyuru gönder, uygulamanın kendi ürettiği tetikleyicileri yönet, gönderilenlerin ne olduğunu gör."
+      description="Elle duyuru gönder, uygulamanın kendi ürettiği tetikleyicileri yönet, kime ne gittiğini ve neyin gitmediğini gör."
     />
 
     <Tabs v-model:value="activeTab" class="seo-tabs">

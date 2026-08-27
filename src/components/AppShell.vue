@@ -12,8 +12,6 @@ type NavItem = {
   name: string
   /** Bu maddenin altında yaşayan alt rota adları. */
   also?: string[]
-  /** Aramada da yakalansın diye eş anlamlılar; ekranda görünmez. */
-  keywords?: string
 }
 type NavGroup = { key: string; label: string; items: NavItem[] }
 
@@ -21,49 +19,40 @@ const route = useRoute()
 const router = useRouter()
 const mobileOpen = ref(false)
 
-// Menü on bir maddeye çıkınca düz liste okunmaz oldu. Maddeler dört gruba
-// ayrıldı; gruplar katlanabiliyor ve tepedeki arama kutusu listeyi süzüyor.
+// İki grup. Önceden dört vardı ve ikisi tek maddelikti: bir başlığın altında
+// tek satır durması gruplamayı bilgi değil dekor yapar. "Kullanıcılar" kimin
+// geldiğini söylediği için genel bakışın yanına, "İçerik" ve "Bildirimler"
+// kullanıcıya ne gittiğini yönettiği için ürünün yanına taşındı.
 const groups: NavGroup[] = [
   {
     key: 'genel',
     label: 'GENEL',
     items: [
-      { to: '/', label: 'Genel bakış', icon: 'pi pi-th-large', name: 'dashboard', keywords: 'dashboard ozet panel' },
-      { to: '/buyume', label: 'Büyüme', icon: 'pi pi-chart-line', name: 'growth', keywords: 'funnel retention huni' },
-      { to: '/analitik', label: 'Analitik', icon: 'pi pi-chart-bar', name: 'analytics', keywords: 'seo gsc instagram magaza trafik' },
+      { to: '/', label: 'Genel bakış', icon: 'pi pi-th-large', name: 'dashboard' },
+      { to: '/buyume', label: 'Büyüme', icon: 'pi pi-chart-line', name: 'growth' },
+      { to: '/analitik', label: 'Analitik', icon: 'pi pi-chart-bar', name: 'analytics' },
+      // Kullanıcı detayı da bu maddenin altında yaşar; alt rota adı verilmezse
+      // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
+      //
+      // Beta başvuruları menüde madde DEĞİL: liste Kullanıcılar sayfasındaki
+      // karttan açılan yan panelde. Rota duruyor ki yer imleri kırılmasın ama
+      // menüden erişilen tek yol o karttır — menü araması kalktığı için
+      // "beta" yazarak da bulunamaz.
+      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users', also: ['user-detail', 'beta'] },
     ],
   },
   {
     key: 'urun',
     label: 'ÜRÜN',
     items: [
-      { to: '/besinler', label: 'Besin kataloğu', icon: 'pi pi-book', name: 'foods', keywords: 'yemek gida katalog' },
-      { to: '/gorevler', label: 'Görevler', icon: 'pi pi-sparkles', name: 'quests', keywords: 'quest oyunlastirma' },
-      { to: '/surum', label: 'Sürüm kapısı', icon: 'pi pi-mobile', name: 'version-gate', keywords: 'mobil release guncelleme' },
+      { to: '/besinler', label: 'Besin kataloğu', icon: 'pi pi-book', name: 'foods' },
+      { to: '/gorevler', label: 'Görevler', icon: 'pi pi-sparkles', name: 'quests' },
+      { to: '/surum', label: 'Sürüm kapısı', icon: 'pi pi-mobile', name: 'version-gate' },
       // Ajan detayı da bu maddenin altında yaşar; alt rota adı verilmezse
       // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
-      { to: '/zeka', label: 'Zeka merkezi', icon: 'pi pi-comments', name: 'intelligence', also: ['agent-detail'], keywords: 'afi ajan yapay zeka' },
-    ],
-  },
-  {
-    key: 'insanlar',
-    label: 'İNSANLAR',
-    items: [
-      // Kullanıcı detayı da bu maddenin altında yaşar; alt rota adı verilmezse
-      // detaya girildiğinde menüde hiçbir madde işaretli kalmıyor.
-      // Beta başvuruları menüden çıktı: liste Kullanıcılar sayfasındaki
-      // karttan açılan yan panelde. Rota duruyor (yer imleri kırılmasın),
-      // beta alımı kapanınca ikisi birden kalkacak. Arama anahtarlarında
-      // "beta" duruyor: menüde madde yok ama arayan kişi doğru sayfayı bulsun.
-      { to: '/kullanicilar', label: 'Kullanıcılar', icon: 'pi pi-users', name: 'users', also: ['user-detail', 'beta'], keywords: 'uye hesap beta basvuru davet' },
-    ],
-  },
-  {
-    key: 'iletisim',
-    label: 'İLETİŞİM',
-    items: [
-      { to: '/icerik', label: 'İçerik', icon: 'pi pi-megaphone', name: 'content', keywords: 'blog takvim sosyal' },
-      { to: '/bildirimler', label: 'Bildirimler', icon: 'pi pi-bell', name: 'push', keywords: 'push tetikleyici' },
+      { to: '/zeka', label: 'Zeka merkezi', icon: 'pi pi-comments', name: 'intelligence', also: ['agent-detail'] },
+      { to: '/icerik', label: 'İçerik', icon: 'pi pi-megaphone', name: 'content' },
+      { to: '/bildirimler', label: 'Bildirimler', icon: 'pi pi-bell', name: 'push' },
     ],
   },
 ]
@@ -79,19 +68,6 @@ function persist(key: string, value: string) {
   } catch { /* özel sekme: tercih saklanmaz, menü yine çalışır */ }
 }
 
-/** Türkçe duyarsız arama: büyük/küçük ve şapkalı harf farkı eşleşmeyi bozmasın. */
-function normalize(text: string) {
-  return text
-    .toLocaleLowerCase('tr')
-    .replace(/ı/g, 'i')
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ş/g, 's')
-    .replace(/ö/g, 'o')
-    .replace(/ç/g, 'c')
-    .trim()
-}
-
 /** Madde bu rotayı temsil ediyor mu; `also` alt rotaları da maddeye bağlar. */
 function covers(item: { name: string; also?: string[] }, routeName: unknown) {
   return item.name === routeName || (item.also ?? []).includes(String(routeName))
@@ -103,35 +79,7 @@ function groupOf(routeName: unknown) {
 
 const activeGroup = computed(() => groupOf(route.name))
 
-/* ---------------------------------------------------------------- arama */
-
-const query = ref('')
-const searchInput = ref<HTMLInputElement | null>(null)
 const sidebarEl = ref<HTMLElement | null>(null)
-
-const filtering = computed(() => normalize(query.value).length > 0)
-
-const filteredGroups = computed<NavGroup[]>(() => {
-  const q = normalize(query.value)
-  if (!q) return groups
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) =>
-        normalize(`${item.label} ${group.label} ${item.keywords ?? ''}`).includes(q),
-      ),
-    }))
-    .filter((group) => group.items.length > 0)
-})
-
-const matchCount = computed(() =>
-  filteredGroups.value.reduce((total, group) => total + group.items.length, 0),
-)
-
-function clearSearch() {
-  query.value = ''
-  searchInput.value?.focus()
-}
 
 /* ------------------------------------------------------------ grup katı */
 
@@ -154,15 +102,13 @@ function isLocked(key: string) {
 }
 
 function isOpen(key: string) {
-  // Arama sırasında bütün eşleşmeler görünür olmalı, katlama beklemez.
-  if (filtering.value) return true
   return isLocked(key) || !closed.value.has(key)
 }
 
 function toggleGroup(key: string) {
-  // Kilitli grubun ya da süzülmüş listenin katlanması görsel olarak
-  // karşılıksız kalırdı; tıklama sessizce yutuluyor.
-  if (filtering.value || isLocked(key)) return
+  // Kilitli grubun katlanması görsel olarak karşılıksız kalırdı; tıklama
+  // sessizce yutuluyor.
+  if (isLocked(key)) return
   const next = new Set(closed.value)
   if (next.has(key)) next.delete(key)
   else next.add(key)
@@ -194,9 +140,6 @@ function setCollapsed(next: boolean) {
   persist(RAIL_KEY, next ? '1' : '0')
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
-const shortcutHint = isMac ? '⌘K' : 'Ctrl K'
-
 /* ------------------------------------------------------------- klavye */
 
 function navLinks(): HTMLElement[] {
@@ -219,8 +162,7 @@ function onItemKeydown(event: KeyboardEvent) {
     links[(current + 1) % links.length]?.focus()
   } else if (event.key === 'ArrowUp') {
     event.preventDefault()
-    if (current <= 0) searchInput.value?.focus()
-    else links[current - 1]?.focus()
+    links[current <= 0 ? links.length - 1 : current - 1]?.focus()
   } else if (event.key === 'Home') {
     event.preventDefault()
     links[0]?.focus()
@@ -230,35 +172,8 @@ function onItemKeydown(event: KeyboardEvent) {
   }
 }
 
-async function focusSearch() {
-  if (!isWide.value) mobileOpen.value = true
-  else if (collapsed.value) setCollapsed(false)
-  await nextTick()
-  searchInput.value?.focus()
-  searchInput.value?.select()
-}
-
-function onSearchEnter() {
-  const first = filteredGroups.value[0]?.items[0]
-  if (!first) return
-  query.value = ''
-  mobileOpen.value = false
-  void router.push(first.to)
-}
-
 function onEscape() {
-  if (query.value) {
-    clearSearch()
-    return
-  }
   if (mobileOpen.value) mobileOpen.value = false
-}
-
-function onWindowKeydown(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
-    event.preventDefault()
-    void focusSearch()
-  }
 }
 
 function onWideChange(event: MediaQueryListEvent) {
@@ -271,12 +186,10 @@ onMounted(() => {
   wideQuery = window.matchMedia(WIDE_QUERY)
   isWide.value = wideQuery.matches
   wideQuery.addEventListener('change', onWideChange)
-  window.addEventListener('keydown', onWindowKeydown)
 })
 
 onBeforeUnmount(() => {
   wideQuery?.removeEventListener('change', onWideChange)
-  window.removeEventListener('keydown', onWindowKeydown)
 })
 
 /* -------------------------------------------------------------- hesap */
@@ -285,13 +198,11 @@ const initial = computed(() => auth.user?.email?.slice(0, 1).toUpperCase() ?? ''
 
 function onNavigate() {
   mobileOpen.value = false
-  query.value = ''
 }
 
-// Yol değişince mobil menü kapanmalı, süzgeç de sıfırlanmalı.
+// Yol değişince mobil menü kapanmalı.
 watch(() => route.fullPath, () => {
   mobileOpen.value = false
-  query.value = ''
 })
 
 // Yönlendirmeyi auth katmanı yapar (oturum nerede biterse bitsin aynı yol).
@@ -331,58 +242,16 @@ function logout() {
         </button>
       </div>
 
-      <div class="side-search">
-        <div v-if="!rail" class="search-shell">
-          <i class="pi pi-search" aria-hidden="true" />
-          <input
-            ref="searchInput"
-            v-model="query"
-            type="search"
-            class="search-input"
-            placeholder="Menüde ara"
-            aria-label="Menüde ara"
-            autocomplete="off"
-            spellcheck="false"
-            @keydown.down.prevent="focusFirstItem()"
-            @keydown.enter.prevent="onSearchEnter()"
-          />
-          <button
-            v-if="query"
-            type="button"
-            class="search-clear"
-            aria-label="Aramayı temizle"
-            @click="clearSearch()"
-          >
-            <i class="pi pi-times" aria-hidden="true" />
-          </button>
-          <kbd v-else class="search-kbd">{{ shortcutHint }}</kbd>
-        </div>
-        <button
-          v-else
-          v-tooltip.right="{ value: 'Menüde ara', showDelay: 220 }"
-          type="button"
-          class="rail-search"
-          aria-label="Menüde ara"
-          @click="focusSearch()"
-        >
-          <i class="pi pi-search" aria-hidden="true" />
-        </button>
-      </div>
-
-      <p v-if="filtering" class="sr-only" role="status" aria-live="polite">
-        {{ matchCount }} menü maddesi eşleşti
-      </p>
-
       <div class="nav-scroll">
-        <div v-for="group in filteredGroups" :key="group.key" class="nav-group">
+        <div v-for="group in groups" :key="group.key" class="nav-group">
           <button
             v-if="!rail"
             type="button"
             class="nav-caption"
-            :class="{ locked: isLocked(group.key) || filtering }"
+            :class="{ locked: isLocked(group.key) }"
             :aria-expanded="isOpen(group.key)"
             :aria-controls="`nav-${group.key}`"
-            :aria-disabled="isLocked(group.key) || filtering ? 'true' : undefined"
+            :aria-disabled="isLocked(group.key) ? 'true' : undefined"
             @click="toggleGroup(group.key)"
           >
             <span class="cap-text">{{ group.label }}</span>
@@ -390,7 +259,7 @@ function logout() {
             <!-- Katlı grupta kaç madde saklandığı görünsün, tahmin gerekmesin. -->
             <span v-if="!isOpen(group.key)" class="cap-count">{{ group.items.length }}</span>
             <i v-if="isOpen(group.key) && isLocked(group.key)" class="cap-here pi pi-circle-fill" aria-hidden="true" />
-            <i v-else-if="!filtering" class="pi pi-chevron-down nav-chevron" aria-hidden="true" />
+            <i v-else class="pi pi-chevron-down nav-chevron" aria-hidden="true" />
           </button>
 
           <nav v-show="rail || isOpen(group.key)" :id="`nav-${group.key}`" :aria-label="group.label">
@@ -413,10 +282,6 @@ function logout() {
           </nav>
         </div>
 
-        <p v-if="filtering && !matchCount" class="nav-empty">
-          <i class="pi pi-inbox" aria-hidden="true" />
-          <span>"{{ query }}" için menüde sonuç yok</span>
-        </p>
       </div>
 
       <div class="side-foot">
@@ -457,17 +322,6 @@ function logout() {
 /* Bütün stiller burada duruyor: global main.css'e dokunulmuyor, gereken
    yerlerde global sınıflar scoped öznitelik özgüllüğüyle eziliyor. */
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
 
 /* ---------------------------------------------------------- iskelet ---- */
 
@@ -496,90 +350,16 @@ function logout() {
 .brand-copy small { margin-top: 4px; }
 
 .rail-toggle,
-.rail-search {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  color: #a7d7c3;
-  background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
-}
 .rail-toggle:hover,
-.rail-search:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 .rail-toggle:focus-visible,
-.rail-search:focus-visible { outline: 2px solid #62dda8; outline-offset: 2px; }
-.rail-toggle i, .rail-search i { font-size: 12px; }
+.rail-toggle i { font-size: 12px; }
 
 /* ------------------------------------------------------------- arama ---- */
 
-.side-search {
-  margin-top: 16px;
-  position: relative;
-  z-index: 1;
-}
 
-.search-shell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 8px 0 11px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  transition: border-color 0.18s ease, background 0.18s ease;
-}
-.search-shell:focus-within {
-  border-color: rgba(98, 221, 168, 0.65);
-  background: rgba(255, 255, 255, 0.1);
-}
-.search-shell > .pi-search { font-size: 13px; color: #7fa595; }
 
-.search-input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: none;
-  color: #eef8f2;
-  font-size: 13px;
-  font-weight: 750;
-}
-.search-input::placeholder { color: #7fa595; font-weight: 700; }
-.search-input::-webkit-search-cancel-button { display: none; }
 
-.search-kbd {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  color: #8fb5a5;
-  font-family: inherit;
-  font-size: 9.5px;
-  font-weight: 850;
-  letter-spacing: 0.03em;
-}
 
-.search-clear {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 7px;
-  color: #a7d7c3;
-  background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-}
-.search-clear:hover { color: #fff; background: rgba(255, 255, 255, 0.16); }
-.search-clear:focus-visible { outline: 2px solid #62dda8; outline-offset: 2px; }
-.search-clear i { font-size: 10px; }
 
 /* --------------------------------------------------------- menü kütlesi -- */
 
@@ -660,16 +440,6 @@ function logout() {
 .nav-item.active { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16); }
 .nav-item:focus-visible { outline: 2px solid #62dda8; outline-offset: 2px; }
 
-.nav-empty {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 14px 4px 0;
-  color: #8fb5a5;
-  font-size: 11px;
-  line-height: 1.5;
-}
-.nav-empty i { margin-top: 1px; font-size: 12px; opacity: 0.7; }
 
 /* -------------------------------------------------------------- alt ---- */
 
@@ -687,9 +457,6 @@ function logout() {
 
   .sidebar.is-rail .side-top { flex-direction: column; gap: 10px; }
   .sidebar.is-rail .brand-lockup { justify-content: center; }
-  .sidebar.is-rail .side-search { margin-top: 12px; display: flex; justify-content: center; }
-  .sidebar.is-rail .rail-search { width: 100%; height: 34px; }
-
   .sidebar.is-rail .nav-scroll { margin-top: 12px; }
   .sidebar.is-rail .nav-group + .nav-group {
     margin-top: 8px;
@@ -720,15 +487,12 @@ function logout() {
 
 @media (max-width: 820px) {
   /* Parmakla kullanılan çekmecede hedefler yeniden büyüyor. */
-  .search-shell { height: 42px; }
   .nav-caption { min-height: 38px; }
   .nav-item { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .nav-chevron,
-  .rail-toggle,
-  .rail-search,
-  .search-shell { transition: none; }
+  .rail-toggle { transition: none; }
 }
 </style>

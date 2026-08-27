@@ -147,12 +147,18 @@ export const PUSH_BODY_MAX = 160
 // birlikte güncellenmezse istemci sessizce yanlış kanala düşer.
 
 export type PushTriggerKind =
-  | 'meal_reminder' | 'week_closure' | 'greeting'
-  | 'friend_request' | 'friend_accepted' | 'admin_broadcast'
+  | 'meal_reminder' | 'week_closure' | 'week_summary'
+  | 'streak_3' | 'first_measurement' | 'meal_10' | 'first_custom_food'
+  | 'quest_reward'
+  | 'welcome_day1' | 'welcome_day3' | 'welcome_day7' | 'comeback'
+  | 'greeting' | 'friend_request' | 'friend_accepted' | 'social_digest'
+  | 'group_invite' | 'group_invite_accepted'
+  | 'admin_broadcast'
 
 /** Kullanıcının uygulamadan kapatabildiği tercih alanı. */
 export type PushPreferenceKey =
-  | 'mealReminderEnabled' | 'weekClosureEnabled' | 'socialEnabled' | 'announcementsEnabled'
+  | 'mealReminderEnabled' | 'weekClosureEnabled' | 'socialEnabled'
+  | 'invitationsEnabled' | 'announcementsEnabled'
 
 export type PushTrigger = {
   kind: PushTriggerKind
@@ -324,6 +330,86 @@ export const pushTriggerMeta: Record<PushTriggerKind, PushTriggerMeta> = {
     fields: { time: true, weekday: false, body: true, target: true },
     readOnlyNote: 'Kullanıcı uygulamadan kendi saatini seçebilir. Buradaki saat yalnız hiç seçmemiş olanlarda geçerlidir.',
   },
+  week_summary: {
+    label: 'Geçen haftan',
+    icon: 'pi pi-calendar',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: true, weekday: true, body: true, target: true },
+    readOnlyNote: 'Pazartesi sabahı, geçen hafta en az bir gün kayıt tutulduysa. Hiçbir şey yazılmamış hafta bildirim üretmez: o hafta hakkında dürüst bir olumlu cümle yok.',
+  },
+  streak_3: {
+    label: 'Üç gün üst üste',
+    icon: 'pi pi-bolt',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Üçüncü ardışık kayıt gününde. Eşik ürün kodunda sabittir.',
+  },
+  first_measurement: {
+    label: 'İlk ölçüm',
+    icon: 'pi pi-chart-line',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Kişi ilk ölçümünü girdiğinde, bir kez.',
+  },
+  meal_10: {
+    label: 'Onuncu kayıt',
+    icon: 'pi pi-check-circle',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Onuncu öğün kaydında, bir kez.',
+  },
+  first_custom_food: {
+    label: 'İlk kendi besini',
+    icon: 'pi pi-plus-circle',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Kişi kataloğa kendi besinini eklediğinde, bir kez.',
+  },
+  quest_reward: {
+    label: 'Alınmamış görev ödülü',
+    icon: 'pi pi-gift',
+    tone: 'amber',
+    optOut: 'Bildirimler ayarındaki “Kutlamalar” anahtarı',
+    fields: { time: true, weekday: false, body: true, target: true },
+    readOnlyNote: 'Tamamlanmış ama ödülü alınmamış görev varsa, günün belirlenen saatinde. Saat şart: alınmamış ödül gün boyu doğrudur, saatsiz bırakılırsa tikin denk geldiği ana göre gece de gidebilir.',
+  },
+  welcome_day1: {
+    label: 'Hoş geldin · ikinci gün',
+    icon: 'pi pi-sun',
+    tone: 'green',
+    optOut: 'Bildirimler ayarındaki “Davetler” anahtarı',
+    fields: { time: true, weekday: false, body: true, target: true },
+    readOnlyNote: 'Kayıttan sonraki gün. Yapılmamış bir şeyi söylemez, ikinci günü davet eder.',
+  },
+  welcome_day3: {
+    label: 'Hoş geldin · ölçüm daveti',
+    icon: 'pi pi-compass',
+    tone: 'green',
+    optOut: 'Bildirimler ayarındaki “Davetler” anahtarı',
+    fields: { time: true, weekday: false, body: true, target: true },
+    readOnlyNote: 'Üçüncü gün. Kişi ölçümünü zaten girdiyse bu adım tümden atlanır.',
+  },
+  welcome_day7: {
+    label: 'Hoş geldin · ilk hafta',
+    icon: 'pi pi-flag',
+    tone: 'green',
+    optOut: 'Bildirimler ayarındaki “Davetler” anahtarı',
+    fields: { time: true, weekday: false, body: true, target: true },
+    readOnlyNote: 'Yedinci gün, ilk haftada ne olduğunu bildirir. {sayi} gönderim anında kayıt günü sayısına dönüşür.',
+  },
+  comeback: {
+    label: 'Geri dönüş daveti',
+    icon: 'pi pi-undo',
+    tone: 'coral',
+    optOut: 'Bildirimler ayarındaki “Davetler” anahtarı',
+    fields: { time: true, weekday: false, body: true, target: true },
+    readOnlyNote: 'Uzaklaşmış kademedekilerin duyduğu tek şey. Sayı söylemez ve bir şey istemez: üç hafta önce ayrılan birine ne kadar olduğunu hatırlatmak değil, kapının açık olduğunu göstermek gerekir.',
+  },
   week_closure: {
     label: 'Afiyet haftası kutlaması',
     icon: 'pi pi-star',
@@ -356,8 +442,32 @@ export const pushTriggerMeta: Record<PushTriggerKind, PushTriggerMeta> = {
     fields: { time: false, weekday: false, body: true, target: true },
     readOnlyNote: 'İstek kabul edildiği anda kuyruğa girer. Sessiz saatlere denk gelirse sabaha ertelenir.',
   },
+  social_digest: {
+    label: 'Sofra özeti',
+    icon: 'pi pi-inbox',
+    tone: 'blue',
+    optOut: 'Bildirimler ayarındaki “Sofra ve arkadaşlar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Sosyal kova taşınca fazlası düşmez, bekler ve tek özet olarak çıkar. {sayi} birleşen bildirim sayısına dönüşür.',
+  },
+  group_invite: {
+    label: 'Sofra daveti',
+    icon: 'pi pi-users',
+    tone: 'blue',
+    optOut: 'Bildirimler ayarındaki “Sofra ve arkadaşlar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Birisi gruba davet ettiği anda kuyruğa girer.',
+  },
+  group_invite_accepted: {
+    label: 'Davet kabul edildi',
+    icon: 'pi pi-user-plus',
+    tone: 'blue',
+    optOut: 'Bildirimler ayarındaki “Sofra ve arkadaşlar” anahtarı',
+    fields: { time: false, weekday: false, body: true, target: true },
+    readOnlyNote: 'Gönderdiğin davet kabul edildiğinde kuyruğa girer.',
+  },
   admin_broadcast: {
-    label: 'Duyurular',
+    label: 'Duyuru',
     icon: 'pi pi-megaphone',
     tone: 'green',
     optOut: 'Bildirimler ayarındaki “Duyurular” anahtarı',
@@ -366,6 +476,20 @@ export const pushTriggerMeta: Record<PushTriggerKind, PushTriggerMeta> = {
     readOnlyNote: 'Metni her gönderimde Gönder sekmesinde yazılır. Buradaki anahtar tüm duyuruları topluca durdurur.',
   },
 }
+
+/**
+ * Tür → insan dili. Bir bildirimin adı GEÇTİĞİ HER YERDE buradan okunur:
+ * akış satırı, kişi sayfası, tetikleyici kartı. Tek sözlük var çünkü iki
+ * sözlük er geç birbirinden ayrı düşer.
+ *
+ * Sözlük backend'deki `store.PushTriggerKinds` ile birebir aynıdır ve onunla
+ * BİRLİKTE büyür. Eksik kalırsa panel ham kod gösterir: kişi sayfasındaki
+ * "meal_10 · Bekliyor" satırları tam olarak buydu, panel altı tür tanırken
+ * sunucu on dokuz tür üretiyordu. Tanınmayan tür ham koduyla görünür;
+ * sessizce boş kalmasından iyidir.
+ */
+export const pushKindLabel = (kind: string): string =>
+  pushTriggerMeta[kind as PushTriggerKind]?.label ?? kind
 
 /**
  * Saat alanları HH:MM metni olarak taşınır, Date'e çevrilmez. PrimeVue
@@ -397,12 +521,38 @@ export function pushTriggerCondition(trigger: PushTrigger): string {
       return `Her gün ${trigger.time}, o güne hiç öğün eklenmemişse`
     case 'week_closure':
       return `${weekdayLabels.get(trigger.weekday ?? 1)} ${trigger.time}, geçen hafta 5 afiyet günü dolduysa`
+    case 'week_summary':
+      return `${weekdayLabels.get(trigger.weekday ?? 1)} ${trigger.time}, geçen hafta en az bir gün yazıldıysa`
+    case 'streak_3':
+      return 'Üçüncü ardışık kayıt gününde'
+    case 'first_measurement':
+      return 'İlk ölçüm girildiğinde, bir kez'
+    case 'meal_10':
+      return 'Onuncu öğün kaydında, bir kez'
+    case 'first_custom_food':
+      return 'Kataloğa ilk kendi besini eklendiğinde, bir kez'
+    case 'quest_reward':
+      return `Her gün ${trigger.time}, alınmamış bir görev ödülü varsa`
+    case 'welcome_day1':
+      return `Kayıttan sonraki gün ${trigger.time}`
+    case 'welcome_day3':
+      return `Üçüncü gün ${trigger.time}, ölçüm henüz girilmediyse`
+    case 'welcome_day7':
+      return `Yedinci gün ${trigger.time}`
+    case 'comeback':
+      return `Uzaklaşmış kademedeyken ${trigger.time}`
     case 'greeting':
       return 'Bir grup üyesi sofra selamı gönderdiğinde'
     case 'friend_request':
       return 'Birisi arkadaşlık isteği gönderdiğinde'
     case 'friend_accepted':
       return 'Gönderdiğin istek kabul edildiğinde'
+    case 'social_digest':
+      return 'Sosyal kova taştığında, günde bir kez'
+    case 'group_invite':
+      return 'Birisi sofrasına davet ettiğinde'
+    case 'group_invite_accepted':
+      return 'Gönderdiğin davet kabul edildiğinde'
     case 'admin_broadcast':
       return 'Gönder sekmesinden elle gönderildiğinde'
   }
@@ -497,4 +647,112 @@ export const decisionStatusLabels: Record<PushPersonDecision['status'], string> 
   promoted: 'Gönderildi',
   dropped: 'Düştü',
   merged: 'Özete katıldı',
+}
+
+/* ------------------------------------------------------------------ *
+ * Akış: kime ne gitti, ne gitmedi.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Bir satırın başına gelen. Sıra "iyiden kötüye" değil, CEVABIN NETLİĞİ:
+ * en tepedekiler kesin bir şey söyler, aşağıya inildikçe cümle zayıflar.
+ *
+ *   acildi     kişi bildirime dokundu (push_events.opened_at dolu). Panelin
+ *              elindeki tek gerçek etkileşim kanıtı budur.
+ *   ulasti     en az bir cihazda makbuz onaylandı (delivery = 'delivered').
+ *   yolaCikti  Expo teslimatı kabul etti ama makbuz henüz gelmedi
+ *              ('ticketed'). Sonradan başarısıza düşebilir.
+ *   kuyrukta   push_events satırı açıldı, henüz yola çıkmadı.
+ *   ulasmadi   kalıcı hata; cihaz emekliye ayrılmış olabilir.
+ *   gitmedi    kapı reddetti, hiç bildirim üretilmedi. `reason` neden söyler.
+ *   ozete      sosyal kova taştı, tek tek gitmek yerine özete katıldı.
+ *
+ * BU SÖZLÜKTE "gönderim" KELİMESİ YOK; yukarıdaki bildirim sözlüğünün aynı
+ * kuralı burada da geçerli.
+ */
+export type PushFeedOutcome =
+  | 'acildi' | 'ulasti' | 'yolaCikti' | 'kuyrukta' | 'ulasmadi' | 'gitmedi' | 'ozete'
+
+export const pushOutcomeMeta: Record<PushFeedOutcome, { label: string; severity: string }> = {
+  acildi: { label: 'açtı', severity: 'success' },
+  ulasti: { label: 'ulaştı', severity: 'info' },
+  yolaCikti: { label: 'yola çıktı', severity: 'info' },
+  kuyrukta: { label: 'kuyrukta', severity: 'secondary' },
+  ulasmadi: { label: 'ulaşmadı', severity: 'danger' },
+  gitmedi: { label: 'gitmedi', severity: 'warn' },
+  ozete: { label: 'özete katıldı', severity: 'secondary' },
+}
+
+/** Akışın hangi yarısı: varsayılan yalnız gerçekten çıkanlar. */
+export type PushFeedScope = 'giden' | 'gitmeyen' | 'hepsi'
+
+export const pushFeedScopes: { value: PushFeedScope; label: string }[] = [
+  { value: 'giden', label: 'Gidenler' },
+  { value: 'gitmeyen', label: 'Gitmeyenler' },
+  { value: 'hepsi', label: 'Hepsi' },
+]
+
+/**
+ * Akıştaki tek satır: BİR KİŞİYE giden (ya da gitmeyen) BİR bildirim.
+ *
+ * Duyurular da tek tek satır olur. "Herkese gitti" cümlesi kimin aldığını
+ * söylemiyordu; kaydı kişi düzeyinde tutmayan bir panel "bu kişiye ne gitti"
+ * sorusuna hiçbir zaman cevap veremez.
+ */
+export type PushFeedRow = {
+  /** push_events.id ya da push_proposals.id; ikisi de UUID, çakışmaz. */
+  id: string
+  userId: string
+  email: string
+  displayName: string | null
+  emoji: string | null
+  kind: string
+  /** Gerçekten gönderilen başlık ve gövde; tetikleyicinin şablonu değil. */
+  title: string
+  body: string
+  /** Seçilen ton varyantı; boş ise gövde tek başına durmuş. */
+  variant: string
+  outcome: PushFeedOutcome
+  /** Yalnız 'gitmedi'de dolu: kapının yazdığı ham sebep kodu. */
+  reason: string
+  /** Satırın doğduğu an (teklif ya da olay). */
+  createdAt: string
+  /** Kuyruktan çıktığı an; kuyrukta ve gitmeyenlerde null. */
+  sentAt: string | null
+  openedAt: string | null
+  /** Cihaz kırılımı. Kişi başına birden çok cihaz olabilir. */
+  devices: { total: number; delivered: number; failed: number }
+}
+
+/**
+ * Son 7 günün özeti. `openRate` YALNIZ ulaşanların paydasıyla hesaplanır:
+ * ulaşmamış bir bildirimin açılmamış olması kişi hakkında hiçbir şey söylemez,
+ * paydaya katılırsa oranı sessizce aşağı çeker. Ulaşan yoksa null döner,
+ * "%0" değil.
+ */
+export type PushFeedSummary = {
+  giden: number
+  ulasan: number
+  acilan: number
+  gitmeyen: number
+  openRate: number | null
+}
+
+export type PushFeed = {
+  items: PushFeedRow[]
+  total: number
+  page: number
+  pageSize: number
+  summary: PushFeedSummary
+  /** Akışta gerçekten geçen türler; filtre listesi buradan kurulur. */
+  kinds: string[]
+}
+
+export type PushFeedQuery = {
+  page: number
+  pageSize: number
+  scope: PushFeedScope
+  kind?: string
+  /** E-posta ya da görünen ad içinde arar. */
+  q?: string
 }
