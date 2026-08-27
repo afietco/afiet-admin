@@ -2,7 +2,8 @@ import { authorizedFetch } from './auth'
 import type { GrowthData } from './growth'
 import type {
   PushAudience, PushAudiencePreview, PushBroadcast, PushBroadcastInput,
-  PushGlobalPatch, PushOverview, PushPerson, PushTrigger, PushTriggerPatch,
+  PushFeed, PushFeedQuery, PushGlobalPatch, PushOverview, PushPerson,
+  PushTrigger, PushTriggerPatch,
 } from './push'
 
 // Besin kataloğu tipleri ve uçları services/foods.ts'te yaşar: 16 alan,
@@ -222,6 +223,13 @@ export const adminApi = {
   // Bu not eskiden "uçlar HENÜZ YOK, panel pushMock.ts'e düşer" diyordu;
   // uçlar açıldı, pushMock.ts silindi, not kaldı. Sahte veri yolu YOK.
   pushOverview: () => request<PushOverview>('/v1/admin/push/overview'),
+  // Kime ne gitti, ne gitmedi. Duyuru geçmişi (pushBroadcasts) yalnız elle
+  // yazılanları biliyordu; otomatik giden on sekiz tür hiçbir listede yoktu.
+  pushFeed: (query: PushFeedQuery) =>
+    request<PushFeed>(`/v1/admin/push/akis${queryString({
+      page: query.page, pageSize: query.pageSize, scope: query.scope,
+      kind: query.kind, q: query.q,
+    })}`),
   pushPerson: (userId: string) => request<PushPerson>(`/v1/admin/push/kisi/${userId}`),
   updatePushTrigger: (kind: string, patch: PushTriggerPatch) =>
     request<PushTrigger>(`/v1/admin/push/triggers/${kind}`, { method: 'PATCH', body: JSON.stringify(patch) }),
